@@ -1,0 +1,17 @@
+# Maven build output
+target/
+
+# IDE metadata
+.idea/
+.vscode/
+
+# Generated modernization and upgrade artifacts
+.github/java-upgrade/
+.github/modernize/
+
+# Java compiled files
+*.class
+
+# OS files
+.DS_Store
+Thumbs.db
