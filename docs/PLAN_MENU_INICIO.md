@@ -1,6 +1,6 @@
 # Plan: menú de inicio
 
-**Estado:** las seis fases están hechas. Falta probar la fase 6 en Windows (ver la tabla "Estado de las fases"). Después se hizo un arreglo aparte, el del spawn en un río (ver "Arreglos fuera de las fases").
+**Estado:** terminado. Las seis fases y el arreglo del spawn están hechos y probados en Windows. Lo siguiente es la optimización: ver `PLAN_OPTIMIZACION.md`.
 
 ## Cómo trabajamos: una fase por conversación y `/clear` entre fases
 
@@ -20,13 +20,13 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 | 3. Texto | hecha y probada en Windows | `7a1844c` | Nada. El usuario lo probó el 2026-09-24: el título, los botones grises con *Un jugador* y *Salir* y el hover se ven bien; *Un jugador* entra al mundo y el HUD se ve igual que antes. |
 | 4. Pantalla de "Generando mundo…" | hecha y probada en Windows | `5b4d141` | Nada. El usuario lo probó el 2026-09-24 y funciona bien. |
 | 5. Pausa y volver al menú | hecha y probada en Windows | `a93fa50` | Nada. El usuario lo probó el 2026-09-24 y todo funciona bien: ESC abre y cierra la pausa, el fondo desenfocado con la capa oscura, los botones *Volver al juego* y *Salir al menú*, y entrar y salir del mundo varias veces. |
-| 6. Crear mundo con semilla (opcional) | hecha (compila; probada sin GPU en Linux) | `0a69f5a` | Que *Un jugador* abra *Crear mundo* con el mismo estilo del menú (fondo de tierra, título, *Semilla*, el campo, la ayuda y los botones *Crear mundo* y *Cancelar*) y con el campo vacío. Que se pueda escribir con tildes y ñ, borrar (también manteniendo Borrar) y pegar con Ctrl+V. Que *Cancelar* y ESC vuelvan al menú sin abrir la pausa, y que Enter cree el mundo. Que dos mundos con la misma semilla salgan iguales (mismo lugar al aparecer, mismos árboles, cuevas y nubes) y que dos sin semilla salgan distintos. Que la pausa diga "Semilla: ..." con el número correcto (12345 → 12345, "hola" → 3208380). Que un chunk se vea igual después de alejarse y volver. |
+| 6. Crear mundo con semilla (opcional) | hecha y probada en Windows | `0a69f5a` | Nada. El usuario lo probó el 2026-09-24 y todo salió bien. |
 
 ### Arreglos fuera de las fases
 
 | Arreglo | Estado | Commit | Qué falta probar en Windows |
 | --- | --- | --- | --- |
-| Spawn en tierra firme (siempre aparecías en un río) | hecho (compila; probado sin GPU en Linux) | `c955c1a` | Crear varios mundos (con semilla y sin ella) y ver que apareces de pie en tierra, no en un río ni en el océano. Que la consola diga "Spawn: x, z" y que la misma semilla dé el mismo spawn y el mismo mundo (12345 → spawn en (0, 0), sobre pasto; 1 → spawn en (346, −345), sobre arena). Que "Generando mundo..." siga durando poco aunque el spawn quede lejos de (0, 0), y que al caminar carguen los chunks normal. Detalles en `ARQUITECTURA.md`, "Dónde aparece el jugador". |
+| Spawn en tierra firme (siempre aparecías en un río) | hecho y probado en Windows | `c955c1a` | Nada. El usuario lo probó el 2026-09-24 y todo salió bien. |
 
 ## La idea
 

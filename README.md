@@ -139,6 +139,7 @@ docs/                        # Documentación del proyecto (ver abajo)
 
 - [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): cómo está organizado el código y cómo funciona cada parte (arranque, ciclo del juego, chunks, generación del terreno, bloques, render y controles), dónde cambiar cada cosa y una lista de cosas a revisar.
 - [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md): el plan por fases del menú de inicio y cómo quedó cada fase.
+- [`docs/PLAN_OPTIMIZACION.md`](docs/PLAN_OPTIMIZACION.md): el plan por fases para quitar los tirones al cargar chunks (lo siguiente).
 - [`docs/PLAN_REESTRUCTURACION.txt`](docs/PLAN_REESTRUCTURACION.txt): la reorganización de carpetas que ya se aplicó y qué cambió.
 - [`CLAUDE.md`](CLAUDE.md): cómo trabaja Claude en el proyecto (una fase por conversación y `/clear` entre fases).
 
