@@ -88,6 +88,7 @@ Después, ejecuta la clase `com.minejava.Main.Launcher` desde tu IDE como una ap
 ```text
 src/main/java/com/minejava/
 ├── Main.java                     # Inicialización y ciclo principal del juego
+├── EstadoJuego.java              # Pantalla actual: menú o jugando
 ├── Partida.java                  # Mundo, jugador y cámara de una partida
 ├── render/
 │   ├── ChunkMeshBuilder.java     # Construcción de geometría voxel
@@ -107,7 +108,9 @@ src/main/java/com/minejava/
 │   ├── Input.java                # Teclado y ratón
 │   └── PlayerController.java     # Movimiento y colisiones
 ├── ui/
-│   └── Hud.java                  # Hotbar y mira
+│   ├── Boton.java                # Botón del menú (se ilumina con el ratón encima)
+│   ├── Hud.java                  # Hotbar y mira
+│   └── MenuPrincipal.java        # Menú de inicio: fondo y botones Jugar y Salir
 └── config/
     └── Constants.java            # Configuración general y bloques de la hotbar
 
@@ -127,11 +130,12 @@ docs/                        # Documentación del proyecto (ver abajo)
 
 ## Próximo paso: menú de inicio
 
-Hoy el juego arranca directamente en el mundo. Lo siguiente es agregar un menú de inicio al estilo de Minecraft: al abrir el juego aparece el menú, y al elegir *Un jugador* se crea el mundo y empieza la partida en la misma ventana. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
+El juego ya arranca en un menú de inicio mínimo: un fondo de tierra y dos botones todavía sin texto, *Jugar* (verde) y *Salir* (rojo). *Jugar* crea el mundo y empieza la partida en la misma ventana. Lo que sigue es ponerle texto, una pantalla de "Generando mundo…" y un menú de pausa para volver al inicio. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
 
 ## Limitaciones actuales
 
-- No hay menú de inicio: el juego arranca directamente en el mundo.
+- El menú de inicio es mínimo: los botones no tienen texto y todavía no hay pausa ni forma de volver al menú desde el mundo.
+- La ventana tiene tamaño fijo (1280 × 720).
 - No hay guardado ni carga de mundos.
 - No hay enemigos, animales ni entidades dinámicas.
 - No hay sistema de inventario completo.

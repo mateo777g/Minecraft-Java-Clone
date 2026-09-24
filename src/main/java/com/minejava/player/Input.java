@@ -20,8 +20,9 @@ public class Input {
     public static void init(long window, Camera camara, World mundo, PlayerController jugadorInstancia) {
         jugador = jugadorInstancia; // Guardamos la referencia
 
-        // Bloquear el cursor en el centro de la pantalla
-        GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
+        // El cursor lo captura Main al entrar a la partida. Con firstMouse la primera
+        // posición solo sirve de referencia, así la cámara no pega un salto.
+        firstMouse = true;
 
         // --- 1. MOVIMIENTO DE CÁMARA ---
         GLFW.glfwSetCursorPosCallback(window, new GLFWCursorPosCallback() {

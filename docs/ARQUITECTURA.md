@@ -9,18 +9,20 @@ Todo el código vive en `src/main/java/com/minejava/`:
 ```text
 com/minejava/
 ├── Main.java          Punto de entrada: ventana, OpenGL y ciclo principal
+├── EstadoJuego.java   Qué pantalla se dibuja: menú o partida
 ├── Partida.java       Mundo, jugador y cámara de una partida
 ├── render/            Todo lo que habla con la GPU
 ├── world/             Datos del mundo: chunks, bloques, interacción
 │   └── gen/           Generación procedural del terreno
 ├── player/            Jugador, cámara y entrada (teclado y ratón)
-├── ui/                Interfaz 2D (hotbar y mira)
+├── ui/                Interfaz 2D (menú de inicio, hotbar y mira)
 └── config/            Constantes de configuración
 ```
 
 | Paquete | Clase | Qué hace |
 | --- | --- | --- |
-| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders y textura, crea la `Partida` y corre el ciclo del juego. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders y textura, guarda el estado actual y corre el ciclo del juego. Crea la `Partida` cuando se aprieta *Jugar*. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `EstadoJuego` | `MENU_PRINCIPAL` o `JUGANDO`: le dice al ciclo qué dibujar en cada frame. |
 | `com.minejava` | `Partida` | Lo que pertenece a un mundo: el `World`, el `PlayerController` y la `Camera`. Calcula el spawn, activa `Input`, y en cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. |
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
 | `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). |
@@ -34,8 +36,10 @@ com/minejava/
 | `world.gen` | `PerlinNoise` | Ruido Perlin 2D de 3 octavas con semilla fija (12345). |
 | `player` | `PlayerController` | Movimiento del jugador y colisiones contra los bloques. |
 | `player` | `Camera` | Posición y rotación de la cámara; calcula la matriz de vista y la dirección a la que miras. |
-| `player` | `Input` | Callbacks de GLFW: ratón (mirar, romper, poner, pick block, rueda) y teclas 1–9 de la hotbar. |
+| `player` | `Input` | Callbacks de GLFW: ratón (mirar, romper, poner, pick block, rueda) y teclas 1–9 de la hotbar. Se registran al crear la `Partida`, así que en el menú no existen. |
 | `ui` | `Hud` | Dibuja la hotbar (con los bloques en 3D) y la mira. |
+| `ui` | `MenuPrincipal` | El menú de inicio: fondo de tierra oscurecida y los botones *Jugar* y *Salir*. Lee el ratón cada frame y avisa cuándo se hizo clic en cada botón. |
+| `ui` | `Boton` | Un rectángulo de color que sabe si el ratón está encima y se aclara cuando lo está. |
 | `config` | `Constants` | Tamaño y título de la ventana, sensibilidad del ratón, posición inicial y bloques de la hotbar. |
 
 Recursos en `src/main/resources/`:
@@ -54,24 +58,35 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 
 `init()` hace esto, en orden:
 
-1. Inicializa GLFW y crea la ventana de 1280 × 720 con V-Sync (`glfwSwapInterval(1)`).
-2. Crea el contexto de OpenGL y pone el color del cielo (`glClearColor`).
-3. Compila los shaders y carga `terrain_atlas.png`.
-4. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
-5. Llama a `iniciarPartida()`, que hace `new Partida(window)`. Por ahora se entra directo al mundo; más adelante lo hará el botón del menú.
+1. Inicializa GLFW y crea la ventana de 1280 × 720, de tamaño fijo, con V-Sync (`glfwSwapInterval(1)`).
+2. Deja el cursor visible y activa los botones "pegajosos" del ratón (`GLFW_STICKY_MOUSE_BUTTONS`), para que un clic muy rápido no se pierda entre dos frames del menú.
+3. Crea el contexto de OpenGL y pone el color del cielo (`glClearColor`).
+4. Compila los shaders y carga `terrain_atlas.png`.
+5. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
+6. Crea el `MenuPrincipal` y arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
 
-El constructor de `Partida` hace el resto:
+Al hacer clic en *Jugar*, `iniciarPartida()` captura el cursor (`GLFW_CURSOR_DISABLED`), apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú), hace `new Partida(window)` y pasa a `JUGANDO`. El constructor de `Partida` hace el resto:
 
 1. Crea el `PlayerController` y la `Camera`.
 2. Crea el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0).
 3. Busca la altura de la superficie en (0, 0) y pone al jugador encima, en (0.5, altura, 0.5).
-4. Llama a `Input.init()`, que registra los callbacks y captura el cursor.
+4. Llama a `Input.init()`, que registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
 
 Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y después libera el shader, la textura y la ventana.
 
 ## El ciclo de cada frame
 
-`Main.loop()` repite esto hasta que se cierra la ventana. Los pasos 2 a 6 están en `Partida.update()` y los pasos 7 y 8 en `Partida.render()`:
+`Main.loop()` repite esto hasta que se cierra la ventana. Lo que hace en cada frame depende del estado.
+
+**`MENU_PRINCIPAL`:**
+
+1. Limpia la pantalla.
+2. `menu.update()`: lee la posición del ratón (`glfwGetCursorPos`) para iluminar el botón que está debajo, y el botón izquierdo (`glfwGetMouseButton`). El clic cuenta al **soltar** el botón, así mantenerlo apretado no cuenta como varios clics.
+3. `menu.render()`: dibuja el fondo (la casilla de tierra del atlas repetida en baldosas de 64 px y oscurecida) y los dos botones, con `glOrtho` y `glBegin`/`glEnd` como el HUD.
+4. Si se hizo clic en *Jugar* llama a `iniciarPartida()`; si fue en *Salir*, marca la ventana para cerrarse.
+5. Intercambia buffers y procesa eventos.
+
+**`JUGANDO`:** los pasos 2 a 6 están en `Partida.update()` y los pasos 7 y 8 en `Partida.render()`:
 
 1. Limpia la pantalla.
 2. `Input.update()`: revisa las teclas 1–9 de la hotbar.
@@ -199,6 +214,8 @@ El atlas de 4 × 4 ya está lleno. Para un bloque nuevo hay que:
 | Frecuencia de biomas | `BiomeProvider.BIOME_SCALE` y sus umbrales |
 | Velocidad del jugador | `PlayerController.speed` |
 | Campo de visión | `Main.init()`, `Math.toRadians(70.0f)` |
+| Botones del menú (tamaño, colores, posición) | `MenuPrincipal`: `ANCHO_BOTON`, `ALTO_BOTON`, `SEPARACION` y el constructor |
+| Fondo del menú | `MenuPrincipal.dibujarFondo()` (bloque, oscurecido) y `TAM_BALDOSA` |
 | Color del cielo | `Main.init()`, `glClearColor` |
 | Color del agua y de las nubes | `shaders/fragment.glsl` |
 
@@ -215,7 +232,7 @@ Estas salen de leer el código y no las he probado en el juego. Conviene confirm
 
 1. **Posible desfase de medio bloque.** `ChunkMeshBuilder` dibuja cada bloque centrado en su coordenada entera (de x − 0.5 a x + 0.5), pero las colisiones y el rayo para romper/poner usan `Math.floor`, o sea que tratan al bloque como si ocupara de x a x + 1. Si es así, se notaría como que el jugador flota medio bloque sobre el suelo, o que al apuntar cerca de un borde se rompe o se pone el bloque de al lado.
 2. **Posibles huecos en los bordes de chunk.** Un chunk nuevo empieza lleno de ceros, y 0 es `STONE`. Si la malla de un chunk se arma antes de que su vecino termine de generarse, las caras del borde se ocultan como si hubiera piedra al lado, y no se vuelven a calcular cuando el vecino ya está listo. Pasa algo parecido al romper un bloque justo en el borde, porque solo se reconstruye la malla de ese chunk y no la del vecino.
-3. **La ventana se puede redimensionar**, pero no se actualiza `glViewport`, la proyección ni las medidas del HUD (que usan `SCREEN_WIDTH` y `SCREEN_HEIGHT` fijos).
+3. **La ventana es de tamaño fijo** (`GLFW_RESIZABLE` en falso) porque ni `glViewport`, ni la proyección, ni el HUD, ni los botones del menú se ajustan a otro tamaño: todos usan `SCREEN_WIDTH` y `SCREEN_HEIGHT`. Para poder redimensionarla habría que recalcular todo eso cuando cambia el tamaño.
 4. **La velocidad depende de los FPS**, porque el movimiento se suma por frame y no por tiempo transcurrido.
 5. **`Hud.cleanup()` nunca se llama.** Al cerrar el juego no importa, pero sí importará cuando se pueda salir al menú y volver a entrar.
 6. **El spawn no espera a que el terreno exista.** El constructor de `Partida` calcula la altura de la superficie justo después de `new World()`, mientras el chunk (0, 0) todavía se está generando en otro hilo. Si aún no terminó, ese chunk está lleno de ceros (piedra), la "superficie" sale en y = 200 y el jugador aparece muy arriba, encima de las nubes. El menú de inicio es buen momento para arreglarlo con una pantalla de "Generando mundo…" (ver `PLAN_MENU_INICIO.md`).

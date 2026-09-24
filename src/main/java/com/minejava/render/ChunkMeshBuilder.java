@@ -194,7 +194,8 @@ public class ChunkMeshBuilder {
 
 
 
-    private static float[] getUVs(int blockType) {
+    // {uMin, uMax, vMin, vMax} de la casilla del atlas de ese bloque. También lo usa el fondo del menú.
+    public static float[] getUVs(int blockType) {
 
         if (blockType == Block.WATER) return new float[]{-1.0f, -1.0f, -1.0f, -1.0f};
 
