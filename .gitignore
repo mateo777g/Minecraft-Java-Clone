@@ -12,6 +12,9 @@ target/
 # Java compiled files
 *.class
 
+# Tipografías: MINECRAFT PE es solo para uso personal, así que no se sube (solo titulo.png)
+*.ttf
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -17,7 +17,7 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 | --- | --- | --- | --- |
 | 1. Sacar la partida de `Main` | hecha (compila) | `35fc81b` | Que el juego se vea y se juegue igual que antes: moverse, romper y poner bloques, rueda y teclas 1–9 de la hotbar, pick block, que carguen chunks al caminar y que se cierre sin errores. |
 | 2. Estados y un menú mínimo | hecha (compila) | `33c3d1b` | Que al abrir salga el menú (fondo de tierra oscura, botón verde *Jugar* y rojo *Salir*); que cada botón se aclare y tenga borde blanco al pasar el ratón; que *Jugar* entre al mundo sin salto de cámara y *Salir* cierre el juego; que el clic en *Jugar* no rompa ni ponga un bloque; que la ventana ya no se pueda agrandar. |
-| 3. Texto | pendiente | | |
+| 3. Texto | hecha (compila) | ver `git log` | Que arriba de los botones salga el título "MINECRAFT / JAVA CLONE" con letras de piedra y borde blanco, centrado; que los botones sean grises y digan *Un jugador* y *Salir* en blanco con sombra; que al pasar el ratón el botón se aclare, tenga borde blanco y su texto se ponga amarillo claro; que las letras se vean nítidas (nada borroso ni columnas más anchas que otras); que *Un jugador* siga entrando al mundo y *Salir* cerrando el juego; que el HUD dentro del mundo se vea igual que antes. |
 | 4. Pantalla de "Generando mundo…" | pendiente | | |
 | 5. Pausa y volver al menú | pendiente | | |
 | 6. Crear mundo con semilla (opcional) | pendiente | | |
@@ -136,10 +136,18 @@ Cada fase deja el juego funcionando, así se puede probar y hacer commit antes d
 
 **Lista cuando:** los botones dicen *Un jugador* y *Salir* y el título se lee bien.
 
+**Cómo quedó:**
+
+- `fuente.png` es una fuente de píxeles propia de 8 × 12 por casilla. Los glifos están dibujados con `#` y `.` en `herramientas/fuente.txt`, y `java herramientas/GenerarFuente.java` los convierte en la imagen. Cada letra mide hasta su última columna pintada, así que el ancho es variable como en Minecraft.
+- El título no se escribe con `Texto`: es una imagen (`titulo.png`) hecha con la tipografía MINECRAFT PE, que trajo el usuario, rellena con la piedra del atlas por `herramientas/GenerarTitulo.java`. Esa tipografía es solo para uso personal, así que su `.ttf` no se sube al repo. `Minecraft.ttf` (CraftronGaming) no se usó porque no trae tildes ni ñ.
+- Los botones pasaron a ser grises, como en Minecraft: ya no hace falta distinguirlos por color.
+- Detalles en `ARQUITECTURA.md`, "Texto y título".
+
 ### Fase 4: pantalla de "Generando mundo…"
 
-- Al darle a *Un jugador*, mostrar "Generando mundo…" hasta que el chunk donde aparece el jugador termine de generarse. Recién ahí se calcula el spawn y se pasa a `JUGANDO`.
+- Al darle a *Un jugador*, mostrar "Generando mundo..." hasta que el chunk donde aparece el jugador termine de generarse. Recién ahí se calcula el spawn y se pasa a `JUGANDO`.
 - Para eso, `Chunk` tiene que avisar cuándo terminó: `terrenoGenerado` debe ser `volatile` (lo escribe un hilo secundario y lo lee el principal) y tener un getter. `World` puede exponer algo como `estaGenerado(x, z)`.
+- El texto se dibuja con `Texto` (lo tiene `Main`). Hay que escribirlo con tres puntos: `…` no es Latin-1 y saldría como `?`.
 - Esto arregla el problema de aparecer encima de las nubes (punto 6 de "Cosas a revisar" en `ARQUITECTURA.md`).
 
 **Lista cuando:** siempre apareces parado sobre el suelo, nunca en el cielo.

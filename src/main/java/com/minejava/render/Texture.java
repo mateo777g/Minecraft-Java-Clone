@@ -14,6 +14,9 @@ public class Texture {
     
     // El ID de tu imagen guardada en la tarjeta gráfica
     private int textureId;
+    // Tamaño de la imagen en píxeles
+    private int ancho;
+    private int alto;
 
     public Texture(String resourcePath) throws Exception {
         // 1. Pedimos a la tarjeta gráfica que nos reserve un espacio para una textura
@@ -46,6 +49,8 @@ public class Texture {
             if (image == null) {
                 throw new Exception("Error al cargar tu textura: " + resourcePath + "\nRazón: " + STBImage.stbi_failure_reason());
             }
+            ancho = width.get(0);
+            alto = height.get(0);
 
             // 4. ENVIAMOS LA IMAGEN A LA TARJETA GRÁFICA
             GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, width.get(), height.get(), 
@@ -78,6 +83,14 @@ public class Texture {
     // Activar la textura antes de dibujar el cubo
     public void bind() {
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+    }
+
+    public int getAncho() {
+        return ancho;
+    }
+
+    public int getAlto() {
+        return alto;
     }
 
     // Borrar la textura de la GPU cuando cerremos el juego

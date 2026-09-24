@@ -10,14 +10,16 @@ import com.minejava.config.Constants;
 import com.minejava.render.ShaderProgram;
 import com.minejava.render.Texture;
 import com.minejava.ui.MenuPrincipal;
+import com.minejava.ui.Texto;
 
 public class Main {
 
-    // Lo que dura todo el programa: ventana, shader, textura, proyección y la pantalla actual.
+    // Lo que dura todo el programa: ventana, shader, texturas, fuente, proyección y la pantalla actual.
     // Lo que pertenece a un mundo vive en Partida.
     private long window;  
     private ShaderProgram shader;
     private Texture blockTexture;
+    private Texto fuente;
     private Matrix4f projectionMatrix;
     private EstadoJuego estado;
     private MenuPrincipal menu;
@@ -63,6 +65,8 @@ public class Main {
             shader.link();
 
             blockTexture = new Texture("/textures/terrain_atlas.png");
+            fuente = new Texto();
+            menu = new MenuPrincipal();
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(-1);
@@ -71,7 +75,6 @@ public class Main {
         projectionMatrix = new Matrix4f().perspective((float) Math.toRadians(70.0f), 
             (float) Constants.SCREEN_WIDTH / Constants.SCREEN_HEIGHT, 0.1f, 1000.0f);
 
-        menu = new MenuPrincipal();
         estado = EstadoJuego.MENU_PRINCIPAL;
     }
 
@@ -97,7 +100,7 @@ public class Main {
             switch (estado) {
                 case MENU_PRINCIPAL -> {
                     menu.update(window);
-                    menu.render(blockTexture);
+                    menu.render(blockTexture, fuente);
                     if (menu.clicEnJugar()) iniciarPartida();
                     else if (menu.clicEnSalir()) GLFW.glfwSetWindowShouldClose(window, true);
                 }
@@ -116,6 +119,8 @@ public class Main {
         if (partida != null) partida.cleanup();
         shader.cleanup();
         blockTexture.cleanup();
+        fuente.cleanup();
+        menu.cleanup();
         GLFW.glfwDestroyWindow(window);
         GLFW.glfwTerminate();
         GLFW.glfwSetErrorCallback(null).free();

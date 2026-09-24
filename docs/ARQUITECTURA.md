@@ -15,17 +15,19 @@ com/minejava/
 ├── world/             Datos del mundo: chunks, bloques, interacción
 │   └── gen/           Generación procedural del terreno
 ├── player/            Jugador, cámara y entrada (teclado y ratón)
-├── ui/                Interfaz 2D (menú de inicio, hotbar y mira)
+├── ui/                Interfaz 2D (menú de inicio, texto, hotbar y mira)
 └── config/            Constantes de configuración
 ```
 
+Fuera del código del juego está `herramientas/`, con dos programas que generan imágenes del juego (ver "Texto y título").
+
 | Paquete | Clase | Qué hace |
 | --- | --- | --- |
-| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders y textura, guarda el estado actual y corre el ciclo del juego. Crea la `Partida` cuando se aprieta *Jugar*. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders, textura y fuente, guarda el estado actual y corre el ciclo del juego. Crea la `Partida` cuando se aprieta *Un jugador*. `Main.Launcher` tiene el `main()`. |
 | `com.minejava` | `EstadoJuego` | `MENU_PRINCIPAL` o `JUGANDO`: le dice al ciclo qué dibujar en cada frame. |
 | `com.minejava` | `Partida` | Lo que pertenece a un mundo: el `World`, el `PlayerController` y la `Camera`. Calcula el spawn, activa `Input`, y en cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. |
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
-| `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). |
+| `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). Guarda su tamaño (`getAncho()`, `getAlto()`). |
 | `render` | `ChunkMeshBuilder` | Convierte los bloques de un chunk en una lista de vértices, dibujando solo las caras visibles. |
 | `world` | `World` | Guarda los chunks activos, decide cuáles cargar y cuáles descargar, los dibuja y resuelve romper/poner bloques. |
 | `world` | `Chunk` | Un pedazo de 48 × 200 × 48 bloques con sus mallas (opaca y transparente) en la GPU. |
@@ -38,8 +40,9 @@ com/minejava/
 | `player` | `Camera` | Posición y rotación de la cámara; calcula la matriz de vista y la dirección a la que miras. |
 | `player` | `Input` | Callbacks de GLFW: ratón (mirar, romper, poner, pick block, rueda) y teclas 1–9 de la hotbar. Se registran al crear la `Partida`, así que en el menú no existen. |
 | `ui` | `Hud` | Dibuja la hotbar (con los bloques en 3D) y la mira. |
-| `ui` | `MenuPrincipal` | El menú de inicio: fondo de tierra oscurecida y los botones *Jugar* y *Salir*. Lee el ratón cada frame y avisa cuándo se hizo clic en cada botón. |
-| `ui` | `Boton` | Un rectángulo de color que sabe si el ratón está encima y se aclara cuando lo está. |
+| `ui` | `MenuPrincipal` | El menú de inicio: fondo de tierra oscurecida, el título (`titulo.png`) y los botones *Un jugador* y *Salir*. Lee el ratón cada frame y avisa cuándo se hizo clic en cada botón. |
+| `ui` | `Boton` | Un rectángulo gris con texto que sabe si el ratón está encima. Cuando lo está, se aclara, le sale un borde blanco y el texto se pone amarillo claro. |
+| `ui` | `Texto` | Dibuja texto con la fuente de píxeles `fuente.png`, con sombra como en Minecraft. Sabe medir un texto y centrarlo. |
 | `config` | `Constants` | Tamaño y título de la ventana, sensibilidad del ratón, posición inicial y bloques de la hotbar. |
 
 Recursos en `src/main/resources/`:
@@ -49,6 +52,8 @@ Recursos en `src/main/resources/`:
 | `shaders/vertex.glsl` | Aplica `projection * view * model` a cada vértice. |
 | `shaders/fragment.glsl` | Pinta con la textura; si la coordenada de textura es negativa pinta agua (azul, 60 % opaca) o nube (blanco). |
 | `textures/terrain_atlas.png` | Atlas de 4 × 4 texturas de bloques. |
+| `textures/fuente.png` | Fuente de píxeles propia: 16 × 16 casillas de 8 × 12, una por carácter (Latin-1). Sale de `herramientas/GenerarFuente.java`. |
+| `textures/titulo.png` | El título del menú, hecho con la tipografía MINECRAFT PE. Sale de `herramientas/GenerarTitulo.java`. |
 
 Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/shaders/vertex.glsl"`), así que funcionan desde el IDE, desde cualquier carpeta y dentro del `.jar`.
 
@@ -61,18 +66,18 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 1. Inicializa GLFW y crea la ventana de 1280 × 720, de tamaño fijo, con V-Sync (`glfwSwapInterval(1)`).
 2. Deja el cursor visible y activa los botones "pegajosos" del ratón (`GLFW_STICKY_MOUSE_BUTTONS`), para que un clic muy rápido no se pierda entre dos frames del menú.
 3. Crea el contexto de OpenGL y pone el color del cielo (`glClearColor`).
-4. Compila los shaders y carga `terrain_atlas.png`.
+4. Compila los shaders, carga `terrain_atlas.png` y la fuente (`new Texto()`) y crea el `MenuPrincipal`, que carga `titulo.png`.
 5. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
-6. Crea el `MenuPrincipal` y arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
+6. Arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
 
-Al hacer clic en *Jugar*, `iniciarPartida()` captura el cursor (`GLFW_CURSOR_DISABLED`), apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú), hace `new Partida(window)` y pasa a `JUGANDO`. El constructor de `Partida` hace el resto:
+Al hacer clic en *Un jugador*, `iniciarPartida()` captura el cursor (`GLFW_CURSOR_DISABLED`), apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú), hace `new Partida(window)` y pasa a `JUGANDO`. El constructor de `Partida` hace el resto:
 
 1. Crea el `PlayerController` y la `Camera`.
 2. Crea el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0).
 3. Busca la altura de la superficie en (0, 0) y pone al jugador encima, en (0.5, altura, 0.5).
 4. Llama a `Input.init()`, que registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
 
-Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y después libera el shader, la textura y la ventana.
+Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y después libera el shader, las texturas (atlas, fuente y título) y la ventana.
 
 ## El ciclo de cada frame
 
@@ -82,8 +87,8 @@ Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y 
 
 1. Limpia la pantalla.
 2. `menu.update()`: lee la posición del ratón (`glfwGetCursorPos`) para iluminar el botón que está debajo, y el botón izquierdo (`glfwGetMouseButton`). El clic cuenta al **soltar** el botón, así mantenerlo apretado no cuenta como varios clics.
-3. `menu.render()`: dibuja el fondo (la casilla de tierra del atlas repetida en baldosas de 64 px y oscurecida) y los dos botones, con `glOrtho` y `glBegin`/`glEnd` como el HUD.
-4. Si se hizo clic en *Jugar* llama a `iniciarPartida()`; si fue en *Salir*, marca la ventana para cerrarse.
+3. `menu.render()`: dibuja el fondo (la casilla de tierra del atlas repetida en baldosas de 64 px y oscurecida), el título y los dos botones con su texto, con `glOrtho` y `glBegin`/`glEnd` como el HUD.
+4. Si se hizo clic en *Un jugador* llama a `iniciarPartida()`; si fue en *Salir*, marca la ventana para cerrarse.
 5. Intercambia buffers y procesa eventos.
 
 **`JUGANDO`:** los pasos 2 a 6 están en `Partida.update()` y los pasos 7 y 8 en `Partida.render()`:
@@ -191,6 +196,40 @@ El atlas de 4 × 4 ya está lleno. Para un bloque nuevo hay que:
 - **Dos pasadas:** `World.render()` dibuja primero la malla opaca de todos los chunks (sin blending) y luego la transparente, que solo tiene el agua (con blending y sin escribir profundidad). Las nubes van en la malla opaca.
 - **HUD:** `Hud` dibuja el fondo, los marcos y la mira con OpenGL antiguo (`glOrtho` + `glBegin`/`glEnd`). Después dibuja un cubo 3D girado por casilla usando el mismo shader con una proyección ortográfica. Funciona porque el contexto que crea GLFW no es "core profile".
 
+## Texto y título
+
+### La fuente (`Texto` y `fuente.png`)
+
+- `fuente.png` mide 128 × 192: 16 × 16 casillas de 8 × 12 píxeles, blancas sobre transparente. La casilla de cada carácter es su código Latin-1 (columna = código % 16, fila = código / 16), así que entran á, é, í, ó, ú, ñ, ü, ¿ y ¡ con sus mayúsculas.
+- Dentro de la casilla, las mayúsculas y los números ocupan las filas 3 a 9, las minúsculas las filas 5 a 9 (con las astas desde la 3), las colas de g, j, p, q, y bajan hasta la 11 y los acentos de las mayúsculas van en las filas 0 y 1.
+- Al cargarla, `Texto` lee la imagen otra vez con `ImageIO` para medir cada letra hasta su última columna pintada, como Minecraft: la "i" ocupa menos que la "m". Entre letra y letra deja una columna libre; el espacio mide 3.
+- Para las coordenadas de textura usa el mismo cálculo que `ChunkMeshBuilder.getUVs()`, con la fila invertida porque `Texture` voltea la imagen.
+- `dibujar(texto, x, y, escala)` pone la esquina de arriba a la izquierda en (x, y). La escala es entera (2 en los botones) para que los píxeles salgan parejos. Primero dibuja una sombra un píxel de la fuente más abajo y a la derecha, cuatro veces más oscura.
+- `dibujarCentrado()` centra el texto en horizontal y la altura de las mayúsculas en vertical. `ancho()` mide un texto.
+- Se encarga solo del blending (lo guarda y lo deja como estaba con `glPushAttrib`/`glPopAttrib`), pero necesita que ya esté puesto el `glOrtho` de la pantalla.
+- Un carácter que no está en la fuente se dibuja como `?`. Ojo con `…` (puntos suspensivos): no es Latin-1, hay que escribir `...`.
+
+Para cambiar o agregar letras se edita `herramientas/fuente.txt`, que tiene los glifos dibujados con `#` y `.` (el formato está explicado al principio del archivo), y se corre desde la carpeta del proyecto:
+
+```text
+java herramientas/GenerarFuente.java
+```
+
+Eso vuelve a escribir `src/main/resources/textures/fuente.png`. La fuente es dibujada para este proyecto, así que no tiene problemas de derechos de autor.
+
+### El título (`titulo.png`)
+
+- Es una imagen de 590 × 143 con "MINECRAFT" y debajo "JAVA CLONE", hecha con la tipografía **MINECRAFT PE** (SpideRaY, kiddiefonts.com). `MenuPrincipal` la dibuja a su tamaño real, centrada, 56 px arriba del primer botón.
+- Las letras de esa tipografía son solo el contorno. `GenerarTitulo` rellena el interior con la casilla de piedra del atlas, reducida a 16 × 16 y ampliada ×3, como el logo de Minecraft.
+- MINECRAFT PE es gratis **solo para uso personal** y tiene todos los derechos reservados. Por eso el `.ttf` no está en el repo (`.gitignore` ignora los `.ttf`): solo la imagen que sale de él. Si algún día el proyecto fuera comercial, habría que pedir una licencia o cambiar de tipografía.
+- Para cambiar el texto o el tamaño se editan `RENGLONES` y `TAMANOS` en `herramientas/GenerarTitulo.java` y se corre con la ruta al `.ttf`:
+
+```text
+java herramientas/GenerarTitulo.java ruta/a/MINECRAFT_PE.ttf
+```
+
+La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y no trae tildes ni ñ.
+
 ## Jugador y controles
 
 - **Movimiento:** vuelo libre, sin gravedad. WASD según hacia dónde miras, Espacio sube y Shift baja. La velocidad es de 0.12 bloques **por frame**, así que depende de los FPS (con V-Sync a 60 Hz son ~7 bloques por segundo).
@@ -214,7 +253,11 @@ El atlas de 4 × 4 ya está lleno. Para un bloque nuevo hay que:
 | Frecuencia de biomas | `BiomeProvider.BIOME_SCALE` y sus umbrales |
 | Velocidad del jugador | `PlayerController.speed` |
 | Campo de visión | `Main.init()`, `Math.toRadians(70.0f)` |
-| Botones del menú (tamaño, colores, posición) | `MenuPrincipal`: `ANCHO_BOTON`, `ALTO_BOTON`, `SEPARACION` y el constructor |
+| Botones del menú (tamaño, posición y texto) | `MenuPrincipal`: `ANCHO_BOTON`, `ALTO_BOTON`, `SEPARACION` y el constructor |
+| Color de los botones y tamaño de su texto | `Boton`: `GRIS` y `ESCALA_TEXTO` |
+| Letras de la fuente | `herramientas/fuente.txt` y volver a correr `GenerarFuente` |
+| Texto del título | `RENGLONES` en `herramientas/GenerarTitulo.java` y volver a correrlo con el `.ttf` |
+| Posición del título | `MenuPrincipal.ESPACIO_TITULO` (distancia al primer botón) |
 | Fondo del menú | `MenuPrincipal.dibujarFondo()` (bloque, oscurecido) y `TAM_BALDOSA` |
 | Color del cielo | `Main.init()`, `glClearColor` |
 | Color del agua y de las nubes | `shaders/fragment.glsl` |

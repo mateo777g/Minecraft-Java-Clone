@@ -20,6 +20,8 @@ Clon educativo de Minecraft desarrollado en Java usando LWJGL 3, OpenGL y JOML. 
 - Colocación y destrucción de bloques.
 - Hotbar visual con selección de bloques.
 - Selección rápida de bloques con Pick Block.
+- Menú de inicio con título y botones con texto.
+- Fuente de píxeles propia con tildes, ñ, ¿ y ¡.
 - Textura atlas incluida en el proyecto.
 - Shaders GLSL para vértices y fragmentos.
 
@@ -55,7 +57,7 @@ Los IDs de todos los bloques están en `world/Block.java` (en el mismo orden que
 | Cambiar bloque seleccionado | Rueda del ratón |
 | Copiar el bloque apuntado | Clic central |
 
-El cursor se captura automáticamente al iniciar el juego.
+El juego empieza en el menú de inicio con el cursor libre; al darle a *Un jugador* se crea el mundo y el cursor se captura.
 
 ## Requisitos
 
@@ -110,14 +112,16 @@ src/main/java/com/minejava/
 ├── ui/
 │   ├── Boton.java                # Botón del menú (se ilumina con el ratón encima)
 │   ├── Hud.java                  # Hotbar y mira
-│   └── MenuPrincipal.java        # Menú de inicio: fondo y botones Jugar y Salir
+│   ├── MenuPrincipal.java        # Menú de inicio: fondo, título y botones Un jugador y Salir
+│   └── Texto.java                # Dibuja texto con la fuente de píxeles
 └── config/
     └── Constants.java            # Configuración general y bloques de la hotbar
 
 src/main/resources/
 ├── shaders/                 # Vertex shader y fragment shader
-└── textures/                # Atlas de texturas del terreno
+└── textures/                # Atlas del terreno, fuente de píxeles y título del menú
 
+herramientas/                # Generan fuente.png y titulo.png (ver docs/ARQUITECTURA.md)
 docs/                        # Documentación del proyecto (ver abajo)
 ```
 
@@ -130,17 +134,22 @@ docs/                        # Documentación del proyecto (ver abajo)
 
 ## Próximo paso: menú de inicio
 
-El juego ya arranca en un menú de inicio mínimo: un fondo de tierra y dos botones todavía sin texto, *Jugar* (verde) y *Salir* (rojo). *Jugar* crea el mundo y empieza la partida en la misma ventana. Lo que sigue es ponerle texto, una pantalla de "Generando mundo…" y un menú de pausa para volver al inicio. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
+El juego ya arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* crea el mundo y empieza la partida en la misma ventana. Lo que sigue es una pantalla de "Generando mundo…" y un menú de pausa para volver al inicio. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
 
 ## Limitaciones actuales
 
-- El menú de inicio es mínimo: los botones no tienen texto y todavía no hay pausa ni forma de volver al menú desde el mundo.
+- Todavía no hay pausa ni forma de volver al menú desde el mundo.
 - La ventana tiene tamaño fijo (1280 × 720).
 - No hay guardado ni carga de mundos.
 - No hay enemigos, animales ni entidades dinámicas.
 - No hay sistema de inventario completo.
 - No hay multijugador.
 - El soporte de ejecución está preparado principalmente para Windows por las dependencias nativas actuales de LWJGL.
+
+## Créditos
+
+- El título del menú está hecho con la tipografía [MINECRAFT PE](https://www.kiddiefonts.com) de SpideRaY, gratis para uso personal. El `.ttf` no está en el repo; solo la imagen `titulo.png`.
+- La fuente de los botones es propia (`herramientas/fuente.txt`).
 
 ## Tecnologías
 
