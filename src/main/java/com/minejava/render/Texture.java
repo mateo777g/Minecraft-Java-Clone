@@ -4,7 +4,9 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
@@ -13,7 +15,7 @@ public class Texture {
     // El ID de tu imagen guardada en la tarjeta gráfica
     private int textureId;
 
-    public Texture(String filePath) throws Exception {
+    public Texture(String resourcePath) throws Exception {
         // 1. Pedimos a la tarjeta gráfica que nos reserve un espacio para una textura
         textureId = GL11.glGenTextures();
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
@@ -28,7 +30,8 @@ public class Texture {
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);
 
-        // 3. CARGAMOS LA IMAGEN DESDE TU CARPETA
+        // 3. CARGAMOS LA IMAGEN DESDE EL CLASSPATH (funciona también dentro del .jar)
+        ByteBuffer archivo = leerRecurso(resourcePath);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer width = stack.mallocInt(1);
             IntBuffer height = stack.mallocInt(1);
@@ -38,10 +41,10 @@ public class Texture {
             // Si no ponemos esto, tu pasto se verá de cabeza.
             STBImage.stbi_set_flip_vertically_on_load(true);
 
-            // Leemos el archivo (jpeg, png, jfif, etc.)
-            ByteBuffer image = STBImage.stbi_load(filePath, width, height, channels, 4);
+            // Decodificamos el archivo (jpeg, png, jfif, etc.)
+            ByteBuffer image = STBImage.stbi_load_from_memory(archivo, width, height, channels, 4);
             if (image == null) {
-                throw new Exception("Error al cargar tu textura: " + filePath + "\nRazón: " + STBImage.stbi_failure_reason());
+                throw new Exception("Error al cargar tu textura: " + resourcePath + "\nRazón: " + STBImage.stbi_failure_reason());
             }
 
             // 4. ENVIAMOS LA IMAGEN A LA TARJETA GRÁFICA
@@ -54,6 +57,21 @@ public class Texture {
             // 5. LIMPIEZA
             // La foto ya está en la memoria de video (VRAM), así que la borramos de la RAM normal para que tu PC no se trabe.
             STBImage.stbi_image_free(image);
+        } finally {
+            MemoryUtil.memFree(archivo);
+        }
+    }
+
+    // stb necesita los bytes del archivo en memoria nativa (no en un byte[] de Java)
+    private static ByteBuffer leerRecurso(String resourcePath) throws Exception {
+        try (InputStream in = Texture.class.getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new Exception("No se encontró el recurso: " + resourcePath);
+            }
+            byte[] bytes = in.readAllBytes();
+            ByteBuffer buffer = MemoryUtil.memAlloc(bytes.length);
+            buffer.put(bytes).flip();
+            return buffer;
         }
     }
 

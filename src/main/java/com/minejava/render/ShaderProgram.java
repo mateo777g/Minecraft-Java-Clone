@@ -1,8 +1,8 @@
 package com.minejava.render;
 
 import org.lwjgl.opengl.GL20;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 public class ShaderProgram {
     
@@ -85,9 +85,15 @@ public class ShaderProgram {
     }
 
     // --- HERRAMIENTA EXTRA PARA LEER TEXTO ---
-    // Esta pequeña función nos ayudará a leer los archivos .glsl desde el disco duro
-    public static String readFile(String filePath) throws Exception {
-        return new String(Files.readAllBytes(Paths.get(filePath)));
+    // Lee un .glsl desde el classpath (ej. "/shaders/vertex.glsl"), así funciona
+    // tanto desde el IDE como empaquetado en un .jar
+    public static String readResource(String resourcePath) throws Exception {
+        try (InputStream in = ShaderProgram.class.getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new Exception("No se encontró el recurso: " + resourcePath);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     public int getProgramId() {

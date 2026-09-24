@@ -66,11 +66,11 @@ public class Main {
 
         try {
             shader = new ShaderProgram();
-            shader.createVertexShader(ShaderProgram.readFile("src/main/resources/shaders/vertex.glsl"));
-            shader.createFragmentShader(ShaderProgram.readFile("src/main/resources/shaders/fragment.glsl"));
+            shader.createVertexShader(ShaderProgram.readResource("/shaders/vertex.glsl"));
+            shader.createFragmentShader(ShaderProgram.readResource("/shaders/fragment.glsl"));
             shader.link();
 
-            blockTexture = new Texture("src/main/resources/textures/terrain_atlas.png");
+            blockTexture = new Texture("/textures/terrain_atlas.png");
             
             // 1. Iniciamos el mundo
             mundo = new World(renderDistance);
