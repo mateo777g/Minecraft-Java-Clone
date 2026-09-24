@@ -1,9 +1,8 @@
 PLAN DE REESTRUCTURACIÓN DEL PROYECTO
 =====================================
 
-Estado: pasos 1 a 7 aplicados. Del paso 8, "mvn clean compile" ya pasa sin
-errores; falta correr el juego (en Windows) para confirmar que el terreno,
-la hotbar y poner/romper bloques siguen funcionando igual.
+Estado: aplicado (pasos 1 a 7). Del paso 8 falta correr el juego en
+Windows; ver la sección 4 al final.
 
 
 1. PROBLEMAS DE LA ESTRUCTURA ACTUAL
@@ -100,3 +99,54 @@ Paso 7. Actualizar el README: el árbol de carpetas y la clase a ejecutar
 Paso 8. Verificar: "mvn clean compile" sin errores y correr el juego para
         confirmar que el terreno, la hotbar y poner/romper bloques siguen
         funcionando igual.
+
+
+4. RESULTADO
+------------
+
+Se aplicó en la rama claude/folder-redistribution-feedback-axvqj2, un commit
+por paso:
+
+  f3eba0e  Pasos 1-2. Mover todo a com.minejava.* con git mv y actualizar
+           package/imports. Se borró BlockMesh.java.
+  9172b41  Paso 3. Un solo CHUNK_SIZE (48); Main usa Chunk.CHUNK_SIZE.
+  054687f  Pasos 4-5. world/Block.java con todos los IDs, sin números mágicos;
+           se borró Constants.ALTURA_MINIMA; Hud e Input usan
+           Constants.BLOQUES_HOTBAR.
+  67c2462  Paso 6. Shaders y textura desde el classpath.
+  2d74373  Paso 7. README actualizado.
+
+Decisiones que no estaban escritas en el plan:
+
+  - El orden correcto de los IDs es el de WorldGenerator (0 piedra, 1 roca
+    madre, 2 tierra, 3 pasto, 4 tronco, 5 hojas, ... 14 arena), que coincide
+    con terrain_atlas.png. El enum BlockType estaba mal y se reemplazó
+    completo por Block (15 = agua y 16 = nube no usan el atlas).
+  - Se agregó Block.isSolid() para el chequeo "no es aire, agua ni nube",
+    que estaba repetido en World y PlayerController.
+  - Input ahora guarda la casilla seleccionada y la traduce a ID con
+    BLOQUES_HOTBAR. Antes casilla e ID eran el mismo número, y funcionaba
+    solo porque la hotbar era 0..5.
+  - La hotbar que describía el README (Pasto, Tierra, Piedra, Roca, Tronco,
+    Madera) venía del enum y no era la real. La real es Piedra, Roca madre,
+    Tierra, Pasto, Tronco y Hojas; se corrigió el README sin cambiar el juego.
+  - ShaderProgram.readFile pasó a llamarse readResource, porque ahora recibe
+    una ruta del classpath y no del disco.
+
+Cómo se verificó:
+
+  - "mvn clean compile" y "mvn package" sin errores.
+  - Se comparó el bytecode antes y después de cada paso. WorldGenerator,
+    Biome, Chunk y ChunkMeshBuilder generan exactamente las mismas
+    instrucciones, así que el terreno sale igual. En World y
+    PlayerController solo cambia la llamada a Block.isSolid.
+  - Carga de recursos probada sin GPU contra el .jar y desde otra carpeta:
+    los shaders se leen y el atlas sale con los mismos píxeles que antes.
+
+Pendiente:
+
+  - Paso 8 en el juego: abrirlo en Windows y confirmar que el terreno, la
+    hotbar (teclas 1-6, rueda y clic central) y poner/romper bloques siguen
+    igual.
+
+Siguiente paso: el menú de inicio (ver docs/PLAN_MENU_INICIO.md).

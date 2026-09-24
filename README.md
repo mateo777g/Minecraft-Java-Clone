@@ -113,10 +113,23 @@ src/main/java/com/minejava/
 src/main/resources/
 ├── shaders/                 # Vertex shader y fragment shader
 └── textures/                # Atlas de texturas del terreno
+
+docs/                        # Documentación del proyecto (ver abajo)
 ```
+
+## Documentación
+
+- [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): cómo está organizado el código y cómo funciona cada parte (arranque, ciclo del juego, chunks, generación del terreno, bloques, render y controles), dónde cambiar cada cosa y una lista de cosas a revisar.
+- [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md): plan del siguiente paso, el menú de inicio.
+- [`docs/PLAN_REESTRUCTURACION.txt`](docs/PLAN_REESTRUCTURACION.txt): la reorganización de carpetas que ya se aplicó y qué cambió.
+
+## Próximo paso: menú de inicio
+
+Hoy el juego arranca directamente en el mundo. Lo siguiente es agregar un menú de inicio al estilo de Minecraft: al abrir el juego aparece el menú, y al elegir *Un jugador* se crea el mundo y empieza la partida en la misma ventana. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
 
 ## Limitaciones actuales
 
+- No hay menú de inicio: el juego arranca directamente en el mundo.
 - No hay guardado ni carga de mundos.
 - No hay enemigos, animales ni entidades dinámicas.
 - No hay sistema de inventario completo.
