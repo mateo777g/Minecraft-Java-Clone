@@ -4,5 +4,6 @@ package com.minejava;
 public enum EstadoJuego {
     MENU_PRINCIPAL,
     GENERANDO_MUNDO, // "Generando mundo..." hasta que el chunk del spawn esté listo
-    JUGANDO
+    JUGANDO,
+    PAUSA            // El mundo quieto y desenfocado detrás de "Volver al juego" y "Salir al menú"
 }

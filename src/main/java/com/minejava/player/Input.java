@@ -2,6 +2,7 @@ package com.minejava.player;
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCursorPosCallback;
+import org.lwjgl.system.Callback;
 
 import com.minejava.config.Constants;
 import com.minejava.world.World;
@@ -16,16 +17,18 @@ public class Input {
     // VVV CAMBIO AQUÍ: Variable estática para recordar quién es el jugador VVV
     private static PlayerController jugador;
 
-    // VVV CAMBIO AQUÍ: El método init ahora acepta 'PlayerController jugadorInstancia' VVV
+    // Registra los callbacks del ratón. Se llama al empezar la partida y al volver de la pausa.
     public static void init(long window, Camera camara, World mundo, PlayerController jugadorInstancia) {
         jugador = jugadorInstancia; // Guardamos la referencia
 
-        // El cursor lo captura Main al entrar a la partida. Con firstMouse la primera
-        // posición solo sirve de referencia, así la cámara no pega un salto.
+        // El cursor lo captura Main al entrar a la partida o al volver de la pausa. Con firstMouse
+        // la primera posición solo sirve de referencia, así la cámara no pega un salto.
         firstMouse = true;
 
+        // Cada glfwSet...Callback devuelve el callback que había antes: se libera por si quedó alguno
+
         // --- 1. MOVIMIENTO DE CÁMARA ---
-        GLFW.glfwSetCursorPosCallback(window, new GLFWCursorPosCallback() {
+        liberar(GLFW.glfwSetCursorPosCallback(window, new GLFWCursorPosCallback() {
             @Override
             public void invoke(long window, double xpos, double ypos) {
                 if (firstMouse) {
@@ -40,10 +43,10 @@ public class Input {
 
                 camara.addRotation(yOffset * Constants.MOUSE_SENSITIVITY, xOffset * Constants.MOUSE_SENSITIVITY);
             }
-        });
+        }));
 
         // --- 2. CLICS DEL RATÓN (Poner, Quitar y Pick Block) ---
-        GLFW.glfwSetMouseButtonCallback(window, (windowId, button, action, mods) -> {
+        liberar(GLFW.glfwSetMouseButtonCallback(window, (windowId, button, action, mods) -> {
             if (action == GLFW.GLFW_PRESS) {
                 if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                     // VVV CAMBIO AQUÍ: Le pasamos 'jugador' al final VVV
@@ -68,17 +71,31 @@ public class Input {
                     }
                 }
             }
-        });
+        }));
 
         // --- 3. RUEDA DEL RATÓN (Hotbar) ---
-        GLFW.glfwSetScrollCallback(window, (windowId, xoffset, yoffset) -> {
+        liberar(GLFW.glfwSetScrollCallback(window, (windowId, xoffset, yoffset) -> {
             int numSlots = Constants.BLOQUES_HOTBAR.length;
             if (yoffset > 0) {
                 selectedSlot = (selectedSlot - 1 + numSlots) % numSlots;
             } else if (yoffset < 0) {
                 selectedSlot = (selectedSlot + 1) % numSlots;
             }
-        });
+        }));
+    }
+
+    // Quita los callbacks del ratón: al pausar (así el ratón no mueve la cámara ni los clics rompen
+    // bloques) y al salir de la partida. Hay que liberarlos con free(): cada uno guarda la cámara y
+    // el mundo, y sin eso el mundo de la partida anterior nunca se liberaría de la memoria.
+    public static void desactivar(long window) {
+        liberar(GLFW.glfwSetCursorPosCallback(window, null));
+        liberar(GLFW.glfwSetMouseButtonCallback(window, null));
+        liberar(GLFW.glfwSetScrollCallback(window, null));
+        jugador = null;
+    }
+
+    private static void liberar(Callback callback) {
+        if (callback != null) callback.free();
     }
 
     // --- 4. TECLADO ---

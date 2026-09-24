@@ -18,7 +18,7 @@ import com.minejava.world.Chunk;
 import com.minejava.world.World;
 
 // Todo lo que pertenece a UNA partida: el mundo, el jugador y la cámara.
-// Crear mundo = new Partida(); cuando estaLista(), comenzar(window); salir = partida.cleanup().
+// Crear mundo = new Partida(); cuando estaLista(), comenzar(window); salir = partida.cleanup(window).
 public class Partida {
 
     private static final int RENDER_DISTANCE = 4; // 4 → 9 × 9 chunks
@@ -64,6 +64,17 @@ public class Partida {
         Input.init(window, camara, mundo, jugador);
     }
 
+    // Apaga los controles del ratón: en la pausa no mueve la cámara ni rompe o pone bloques, y la rueda
+    // no cambia la hotbar. Mientras dure, Main no llama a update(): el jugador y los chunks quedan quietos.
+    public void pausar(long window) {
+        Input.desactivar(window);
+    }
+
+    // Vuelve a activar los controles. Input.init() pone firstMouse = true: la cámara no salta.
+    public void reanudar(long window) {
+        Input.init(window, camara, mundo, jugador);
+    }
+
     // Teclado, movimiento del jugador, carga de chunks y subida de mallas a la GPU
     public void update(long window) {
         Input.update(window);
@@ -105,7 +116,9 @@ public class Partida {
         Hud.render(shader, blockTexture, Input.getSelectedSlot());
     }
 
-    public void cleanup() {
+    // Al salir al menú o cerrar el juego. Después hay que olvidarse de la partida (partida = null).
+    public void cleanup(long window) {
+        Input.desactivar(window);
         mundo.cleanup();
         MemoryUtil.memFree(matrixBuffer);
     }

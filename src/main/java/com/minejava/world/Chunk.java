@@ -59,6 +59,10 @@ public class Chunk {
             terrenoGenerado = true;
         }
 
+        // Si se salió al menú mientras tanto, el mapa ya está vacío: sin vecinos, la malla saldría con
+        // todas las caras y tardaría muchísimo, y nadie la va a dibujar
+        if (world.estaCerrado()) return;
+
         // Construimos las mallas y las dejamos en "bandeja de espera"
         this.pendingOpaqueVertices = ChunkMeshBuilder.buildOpaqueMesh(world, blocks, chunkX, chunkZ);
         this.pendingTransparentVertices = ChunkMeshBuilder.buildTransparentMesh(world, blocks, chunkX, chunkZ);

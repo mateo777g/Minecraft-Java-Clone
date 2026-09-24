@@ -222,10 +222,13 @@ public class Hud {
         };
     }
     
+    // Al cerrar el juego. El VAO es uno solo para todas las partidas: salir al menú no lo borra.
     public static void cleanup() {
         if (vaoId != 0) {
             GL30.glDeleteVertexArrays(vaoId);
             GL15.glDeleteBuffers(vboId);
+            vaoId = 0;
+            vboId = 0;
         }
     }
 }

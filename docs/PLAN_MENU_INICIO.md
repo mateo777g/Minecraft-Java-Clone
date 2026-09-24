@@ -18,7 +18,7 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 | 1. Sacar la partida de `Main` | hecha (compila) | `35fc81b` | Que el juego se vea y se juegue igual que antes: moverse, romper y poner bloques, rueda y teclas 1–9 de la hotbar, pick block, que carguen chunks al caminar y que se cierre sin errores. |
 | 2. Estados y un menú mínimo | hecha (compila) | `33c3d1b` | Que al abrir salga el menú (fondo de tierra oscura, botón verde *Jugar* y rojo *Salir*); que cada botón se aclare y tenga borde blanco al pasar el ratón; que *Jugar* entre al mundo sin salto de cámara y *Salir* cierre el juego; que el clic en *Jugar* no rompa ni ponga un bloque; que la ventana ya no se pueda agrandar. |
 | 3. Texto | hecha y probada en Windows | `7a1844c` | Nada. El usuario lo probó el 2026-09-24: el título, los botones grises con *Un jugador* y *Salir* y el hover se ven bien; *Un jugador* entra al mundo y el HUD se ve igual que antes. |
-| 4. Pantalla de "Generando mundo…" | hecha (compila) | `5b4d141` | Que al darle a *Un jugador* salga el fondo de tierra con *Generando mundo...* (puede durar solo un instante) y después aparezcas parado sobre el suelo, nunca en el cielo; probarlo varias veces. Que al entrar la cámara no salte y el clic de *Un jugador* no rompa un bloque. Que el mundo cargue de adentro hacia afuera. Que cerrar la ventana durante *Generando mundo...* termine el programa enseguida. Mirar si hay huecos en los bordes de chunk alrededor del spawn (punto 2 de "Cosas a revisar"). |
+| 4. Pantalla de "Generando mundo…" | hecha y probada en Windows | `5b4d141` | Nada. El usuario lo probó el 2026-09-24 y funciona bien. |
 | 5. Pausa y volver al menú | pendiente | | |
 | 6. Crear mundo con semilla (opcional) | pendiente | | |
 
@@ -164,12 +164,34 @@ Cada fase deja el juego funcionando, así se puede probar y hacer commit antes d
 
 ### Fase 5: pausa y volver al menú
 
-- ESC durante la partida → estado `PAUSA`: el mundo se sigue viendo quieto, con una capa oscura encima y los botones *Volver al juego* y *Salir al menú*. El cursor queda libre.
-- *Volver al juego*: captura el cursor otra vez y vuelve a `JUGANDO`.
+- ESC durante la partida → estado `PAUSA`; ESC otra vez (o *Volver al juego*) vuelve a `JUGANDO`, como en Minecraft. Mantener ESC apretado no debe abrir y cerrar la pausa varias veces.
+- El mundo se queda congelado detrás: no se llama a `partida.update()`, así que el jugador no se mueve y los chunks no se actualizan.
+- Fondo: el mundo congelado **desenfocado** (blur) con una capa oscura encima. Como el mundo no se mueve en la pausa, el desenfoque se calcula una sola vez al entrar y se reutiliza esa imagen cada frame. El HUD (hotbar y mira) queda detrás del desenfoque, no encima. Las texturas del desenfoque no deben acumularse cada vez que se pausa.
+- Título *Juego en pausa* y botones *Volver al juego* y *Salir al menú*, centrados y con el mismo estilo que el menú de inicio (se reusan `Boton` y `Texto`).
+- El cursor queda libre. Mover el ratón no mueve la cámara, y los clics y la rueda no rompen ni ponen bloques ni cambian la hotbar.
+- *Volver al juego*: captura el cursor otra vez, sin que la cámara pegue un salto, y vuelve a `JUGANDO`.
 - *Salir al menú*: `partida.cleanup()` (llama a `World.cleanup()`, que libera los chunks de la GPU y apaga los hilos), desactivar los callbacks de `Input` (ponerlos en `null` y liberar los anteriores con `.free()`), `partida = null` y estado `MENU_PRINCIPAL`.
 - Ojo: `shutdownNow()` descarta los chunks en cola, pero los que ya se estaban generando terminan igual. Como el mapa ya está vacío, su malla sale con todas las caras (mucha memoria y CPU un rato). Al cerrar el juego no importa porque los hilos son *daemon*; al volver al menú sí. Se puede arreglar haciendo que la tarea no arme la malla si el mundo ya se cerró.
 
 **Lista cuando:** puedes entrar y salir del mundo varias veces seguidas sin que el juego se trabe, sin saltos de cámara al volver a entrar y sin que la memoria suba cada vez.
+
+**Cómo quedó:**
+
+- Clases nuevas: `MenuPausa` (título, botones y capa oscura al 50 %) y `FondoDesenfocado` (el desenfoque). Detalles en `ARQUITECTURA.md`, "Pausa y volver al menú".
+- **ESC** se lee con un callback de teclado en `Main`, que solo cuenta `GLFW_PRESS`. Mantener la tecla manda `GLFW_REPEAT`, que no cuenta.
+- **`pausar()`:** apaga `Input` (`Input.desactivar()` quita los callbacks del ratón y los libera), libera el cursor y lo pone en el centro, y dibuja el mundo una vez más para copiarlo y desenfocarlo. **`reanudar()`** captura el cursor y vuelve a llamar a `Input.init()`, que pone `firstMouse = true`.
+- **El desenfoque** se hace en la CPU: `glReadPixels`, se achica a 320 × 180, desenfoque gaussiano y se sube a **una sola textura** que se crea al arrancar y se reutiliza en cada pausa. Tarda unos 10 ms; la primera pausa de cada sesión, más (en el equipo de prueba, 200 ms), porque Java todavía no optimizó ese código.
+- **En la pausa, un clic solo cuenta si empieza y termina sobre el mismo botón**, así soltar un botón del ratón que venía apretado desde la partida no saca del mundo.
+- **Se arregló el "Ojo" de arriba:** `World.cleanup()` pone `cerrado = true`; `Chunk` no empieza la malla y `ChunkMeshBuilder` la deja a la mitad si el mundo se cerró. Con solo lo primero, un hilo que ya estaba armando una malla tardó 2,1 s en terminar; con las dos, todos terminan en menos de 0,3 s.
+- `Hud.cleanup()` ahora se llama al cerrar el juego (era el punto 5 de "Cosas a revisar"). El VAO del HUD es uno para todas las partidas, así que salir al menú no lo borra.
+- `pom.xml` fija `project.build.sourceEncoding` en UTF-8: *Salir al menú* es el primer texto con tilde que se dibuja, y sin eso la ú podría salir mal según cómo compile el IDE.
+- **Se probó sin GPU**, en Linux: el juego corrió en una pantalla virtual (Xvfb con OpenGL por software) y un programa con `java.awt.Robot` apretó teclas, movió el ratón, hizo clics y sacó capturas:
+  - La pausa se ve con el mundo y el HUD desenfocados, la capa oscura, el título y los botones centrados, y la ú bien.
+  - Durante la pausa se movió el ratón, se hicieron clics izquierdo y derecho mirando al suelo, se giró la rueda y se apretaron 1, 6, W y Espacio: al volver, la pantalla quedó idéntica píxel por píxel.
+  - Mantener ESC 2,5 s (llegaron 1 PRESS y 46 REPEAT) cambió de estado una sola vez.
+  - Al volver con ESC o con el botón, aunque el ratón se haya movido lejos en la pausa, la cámara no salta; después se puede girar, romper, usar la rueda y las teclas.
+  - Entrando y saliendo del mundo 10 y 12 veces seguidas (saliendo a veces en plena generación), el heap de Java después de cada salida vuelve siempre a 2,6 MB (jugando usa 250–360 MB), no quedan hilos generando y la memoria del proceso queda pareja.
+  - Cerrar la ventana en la pausa o en el menú después de salir termina el programa enseguida.
 
 ### Fase 6 (opcional): crear mundo con semilla
 

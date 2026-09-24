@@ -54,6 +54,9 @@ public class ChunkMeshBuilder {
 
         for (int x = 0; x < Chunk.CHUNK_SIZE; x++) {
 
+            // Si se salió al menú a medio armar, los vecinos ya no están: el resto saldría con todas las caras
+            if (world.estaCerrado()) return new float[0];
+
             for (int y = 0; y < Chunk.CHUNK_HEIGHT; y++) {
 
                 for (int z = 0; z < Chunk.CHUNK_SIZE; z++) {

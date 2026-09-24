@@ -21,6 +21,7 @@ Clon educativo de Minecraft desarrollado en Java usando LWJGL 3, OpenGL y JOML. 
 - Hotbar visual con selección de bloques.
 - Selección rápida de bloques con Pick Block.
 - Menú de inicio con título y botones con texto.
+- Menú de pausa (ESC) con el mundo desenfocado detrás; se puede volver al juego o salir al menú y entrar a otro mundo.
 - Fuente de píxeles propia con tildes, ñ, ¿ y ¡.
 - Textura atlas incluida en el proyecto.
 - Shaders GLSL para vértices y fragmentos.
@@ -56,8 +57,9 @@ Los IDs de todos los bloques están en `world/Block.java` (en el mismo orden que
 | Seleccionar bloque 1-6 | Teclas `1` a `6` |
 | Cambiar bloque seleccionado | Rueda del ratón |
 | Copiar el bloque apuntado | Clic central |
+| Pausa / volver al juego | `Esc` |
 
-El juego empieza en el menú de inicio con el cursor libre; al darle a *Un jugador* sale "Generando mundo..." mientras se genera el terreno donde apareces, y al entrar el cursor se captura.
+El juego empieza en el menú de inicio con el cursor libre; al darle a *Un jugador* sale "Generando mundo..." mientras se genera el terreno donde apareces, y al entrar el cursor se captura. `Esc` abre la pausa, con el cursor libre y los botones *Volver al juego* y *Salir al menú*; otro `Esc` vuelve al juego.
 
 ## Requisitos
 
@@ -90,7 +92,7 @@ Después, ejecuta la clase `com.minejava.Main.Launcher` desde tu IDE como una ap
 ```text
 src/main/java/com/minejava/
 ├── Main.java                     # Inicialización y ciclo principal del juego
-├── EstadoJuego.java              # Pantalla actual: menú, generando mundo o jugando
+├── EstadoJuego.java              # Pantalla actual: menú, generando mundo, jugando o pausa
 ├── Partida.java                  # Mundo, jugador y cámara de una partida
 ├── render/
 │   ├── ChunkMeshBuilder.java     # Construcción de geometría voxel
@@ -111,8 +113,10 @@ src/main/java/com/minejava/
 │   └── PlayerController.java     # Movimiento y colisiones
 ├── ui/
 │   ├── Boton.java                # Botón del menú (se ilumina con el ratón encima)
+│   ├── FondoDesenfocado.java     # Fondo de la pausa: el mundo desenfocado
 │   ├── FondoTierra.java          # Fondo de tierra oscurecida de los menús
 │   ├── Hud.java                  # Hotbar y mira
+│   ├── MenuPausa.java            # Pausa: Volver al juego y Salir al menú
 │   ├── MenuPrincipal.java        # Menú de inicio: fondo, título y botones Un jugador y Salir
 │   ├── PantallaGenerando.java    # Pantalla de "Generando mundo..."
 │   └── Texto.java                # Dibuja texto con la fuente de píxeles
@@ -136,11 +140,11 @@ docs/                        # Documentación del proyecto (ver abajo)
 
 ## Próximo paso: menú de inicio
 
-El juego ya arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* crea el mundo, muestra "Generando mundo..." hasta que el terreno donde apareces está listo y empieza la partida en la misma ventana. Lo que sigue es un menú de pausa para volver al inicio. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
+El juego ya arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* crea el mundo, muestra "Generando mundo..." hasta que el terreno donde apareces está listo y empieza la partida en la misma ventana. Con `Esc` se pausa y se puede salir al menú para entrar a un mundo nuevo. Lo que sigue (opcional) es crear mundos con semilla. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
 
 ## Limitaciones actuales
 
-- Todavía no hay pausa ni forma de volver al menú desde el mundo.
+- Todos los mundos tienen la misma forma del terreno (semilla fija).
 - La ventana tiene tamaño fijo (1280 × 720).
 - No hay guardado ni carga de mundos.
 - No hay enemigos, animales ni entidades dinámicas.

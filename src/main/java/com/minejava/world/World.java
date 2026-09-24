@@ -21,6 +21,8 @@ public class World {
     private Map<Long, Chunk> chunksActivos;
     private ExecutorService chunkGenerators;
     private ConcurrentLinkedQueue<Chunk> chunksListosParaGL;
+    // Se pone en true en cleanup(). Lo leen los hilos secundarios, por eso es volatile.
+    private volatile boolean cerrado = false;
 
     public World(int renderDistance) {
         this.renderDistance = renderDistance;
@@ -236,9 +238,16 @@ public class World {
         return Block.AIR;
     }
 
+    // Si ya se llamó a cleanup(). Los chunks que se estaban generando lo revisan para no armar su malla.
+    public boolean estaCerrado() {
+        return cerrado;
+    }
+
     public void cleanup() {
+        cerrado = true;
         // shutdownNow() descarta los chunks que esperan en la cola. Con shutdown() se generarían igual y,
         // como el mapa ya está vacío, cada malla saldría con todas las caras (sin vecinos) y tardaría muchísimo.
+        // Los que ya se estaban generando terminan su terreno, pero con "cerrado" no arman la malla.
         chunkGenerators.shutdownNow();
         for (Chunk chunk : chunksActivos.values()) {
             if (chunk != null) chunk.cleanup();
