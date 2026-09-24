@@ -26,7 +26,7 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 
 | Arreglo | Estado | Commit | Qué falta probar en Windows |
 | --- | --- | --- | --- |
-| Spawn en tierra firme (siempre aparecías en un río) | hecho (compila; probado sin GPU en Linux) | pendiente | Crear varios mundos (con semilla y sin ella) y ver que apareces de pie en tierra, no en un río ni en el océano. Que la consola diga "Spawn: x, z" y que la misma semilla dé el mismo spawn y el mismo mundo (12345 → spawn en (0, 0), sobre pasto; 1 → spawn en (346, −345), sobre arena). Que "Generando mundo..." siga durando poco aunque el spawn quede lejos de (0, 0), y que al caminar carguen los chunks normal. Detalles en `ARQUITECTURA.md`, "Dónde aparece el jugador". |
+| Spawn en tierra firme (siempre aparecías en un río) | hecho (compila; probado sin GPU en Linux) | `c955c1a` | Crear varios mundos (con semilla y sin ella) y ver que apareces de pie en tierra, no en un río ni en el océano. Que la consola diga "Spawn: x, z" y que la misma semilla dé el mismo spawn y el mismo mundo (12345 → spawn en (0, 0), sobre pasto; 1 → spawn en (346, −345), sobre arena). Que "Generando mundo..." siga durando poco aunque el spawn quede lejos de (0, 0), y que al caminar carguen los chunks normal. Detalles en `ARQUITECTURA.md`, "Dónde aparece el jugador". |
 
 ## La idea
 
