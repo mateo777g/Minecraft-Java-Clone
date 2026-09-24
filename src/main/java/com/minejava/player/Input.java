@@ -11,7 +11,7 @@ public class Input {
     private static double lastMouseX;
     private static double lastMouseY;
     private static boolean firstMouse = true;
-    private static int selectedBlockType = 3; 
+    private static int selectedSlot = 3; // Casilla del pasto
 
     // VVV CAMBIO AQUÍ: Variable estática para recordar quién es el jugador VVV
     private static PlayerController jugador;
@@ -46,18 +46,19 @@ public class Input {
             if (action == GLFW.GLFW_PRESS) {
                 if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                     // VVV CAMBIO AQUÍ: Le pasamos 'jugador' al final VVV
-                    mundo.interactuarConTerreno(camara, true, selectedBlockType, jugador);  
+                    mundo.interactuarConTerreno(camara, true, getSelectedBlockType(), jugador);  
                 } else if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
                     // VVV CAMBIO AQUÍ: Le pasamos 'jugador' al final VVV
-                    mundo.interactuarConTerreno(camara, false, selectedBlockType, jugador); 
+                    mundo.interactuarConTerreno(camara, false, getSelectedBlockType(), jugador); 
                 } else if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
                     try {
                         int bloqueMirado = mundo.getBlockAtCrosshair(camara);
                         System.out.println("Pick Block -> ID detectado en el mundo: " + bloqueMirado);
 
-                        if (bloqueMirado >= 0 && bloqueMirado <= 5) {
-                            selectedBlockType = bloqueMirado; 
-                            System.out.println("Hotbar sincronizada al slot: " + selectedBlockType);
+                        int slot = buscarSlot(bloqueMirado);
+                        if (slot != -1) {
+                            selectedSlot = slot;
+                            System.out.println("Hotbar sincronizada al slot: " + selectedSlot);
                         } else {
                             System.out.println("Bloque mirado no está asignado a la hotbar o es aire (-1)");
                         }
@@ -70,25 +71,37 @@ public class Input {
 
         // --- 3. RUEDA DEL RATÓN (Hotbar) ---
         GLFW.glfwSetScrollCallback(window, (windowId, xoffset, yoffset) -> {
+            int numSlots = Constants.BLOQUES_HOTBAR.length;
             if (yoffset > 0) {
-                selectedBlockType = (selectedBlockType - 1 + 6) % 6;
+                selectedSlot = (selectedSlot - 1 + numSlots) % numSlots;
             } else if (yoffset < 0) {
-                selectedBlockType = (selectedBlockType + 1) % 6;
+                selectedSlot = (selectedSlot + 1) % numSlots;
             }
         });
     }
 
     // --- 4. TECLADO ---
     public static void update(long window) {
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1) == GLFW.GLFW_PRESS) selectedBlockType = 0;
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_2) == GLFW.GLFW_PRESS) selectedBlockType = 1;
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_3) == GLFW.GLFW_PRESS) selectedBlockType = 2;
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_4) == GLFW.GLFW_PRESS) selectedBlockType = 3;
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_5) == GLFW.GLFW_PRESS) selectedBlockType = 4;
-        if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_6) == GLFW.GLFW_PRESS) selectedBlockType = 5;
+        // Teclas 1..9 (GLFW_KEY_1 a GLFW_KEY_9 son consecutivas)
+        int numTeclas = Math.min(Constants.BLOQUES_HOTBAR.length, 9);
+        for (int i = 0; i < numTeclas; i++) {
+            if (GLFW.glfwGetKey(window, GLFW.GLFW_KEY_1 + i) == GLFW.GLFW_PRESS) selectedSlot = i;
+        }
+    }
+
+    // Devuelve la casilla de la hotbar que tiene ese bloque, o -1 si no está
+    private static int buscarSlot(int blockId) {
+        for (int i = 0; i < Constants.BLOQUES_HOTBAR.length; i++) {
+            if (Constants.BLOQUES_HOTBAR[i] == blockId) return i;
+        }
+        return -1;
+    }
+
+    public static int getSelectedSlot() {
+        return selectedSlot;
     }
 
     public static int getSelectedBlockType() {
-        return selectedBlockType;
+        return Constants.BLOQUES_HOTBAR[selectedSlot];
     }
 }

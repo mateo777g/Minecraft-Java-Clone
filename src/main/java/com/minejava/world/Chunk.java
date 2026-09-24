@@ -162,7 +162,7 @@ public class Chunk {
         if (x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_HEIGHT && z >= 0 && z < CHUNK_SIZE) {
             return blocks[x][y][z];
         }
-        return -1; 
+        return Block.AIR;
     }
 
     public int[][][] getBlocks() { return blocks; }

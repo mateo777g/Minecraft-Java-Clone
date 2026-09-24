@@ -3,6 +3,7 @@ package com.minejava.player;
 import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
+import com.minejava.world.Block;
 import com.minejava.world.World;
 
 public class PlayerController {
@@ -87,7 +88,7 @@ public class PlayerController {
                 for (int z = startZ; z <= endZ; z++) {
                     int blockId = mundo.getBlockGlobal(x, y, z);
                     
-                    if (blockId != -1 && blockId != 15 && blockId != 16) {
+                    if (Block.isSolid(blockId)) {
                         return true; 
                     }
                 }

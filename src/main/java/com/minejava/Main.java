@@ -141,7 +141,7 @@ public class Main {
 
             shader.unbind();
 
-            Hud.render(shader, blockTexture, Input.getSelectedBlockType());
+            Hud.render(shader, blockTexture, Input.getSelectedSlot());
 
             GLFW.glfwSwapBuffers(window);
             GLFW.glfwPollEvents();

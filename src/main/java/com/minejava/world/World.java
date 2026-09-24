@@ -109,7 +109,7 @@ public class World {
             int lz = Math.floorMod(z, Chunk.CHUNK_SIZE);
             return chunksActivos.get(clave).getBlock(lx, y, lz);
         }
-        return -1;
+        return Block.AIR;
     }
 
     public void setBlockGlobal(int x, int y, int z, int blockType) {
@@ -132,7 +132,7 @@ public class World {
     public float getAlturaSuperficie(int x, int z) {
         for (int y = Chunk.CHUNK_HEIGHT - 1; y >= 0; y--) {
             int block = getBlockGlobal(x, y, z);
-            if (block != -1 && block != 15 && block != 16) {
+            if (Block.isSolid(block)) {
                 return y + 1.0f;
             }
         }
@@ -157,16 +157,16 @@ public class World {
             
             int hitBlock = getBlockGlobal(blockX, blockY, blockZ);
             
-            if (hitBlock != -1 && hitBlock != 15 && hitBlock != 16) {
+            if (Block.isSolid(hitBlock)) {
                 if (romper) {
-                    setBlockGlobal(blockX, blockY, blockZ, -1);
+                    setBlockGlobal(blockX, blockY, blockZ, Block.AIR);
                 } else {
                     // ¡CORREGIDO!: El bloque vacío adyacente también se calcula con floor
                     int placeX = (int) Math.floor(lastVacantPos.x);
                     int placeY = (int) Math.floor(lastVacantPos.y);
                     int placeZ = (int) Math.floor(lastVacantPos.z);
                     
-                    if (getBlockGlobal(placeX, placeY, placeZ) == -1) {
+                    if (getBlockGlobal(placeX, placeY, placeZ) == Block.AIR) {
                         if (jugador.intersectsBlock(placeX, placeY, placeZ)) {
                             System.out.println("¡Bloqueado! No puedes poner un bloque sobre ti mismo bro.");
                         } else {
@@ -197,11 +197,11 @@ public class World {
             
             int hitBlock = getBlockGlobal(blockX, blockY, blockZ);
             
-            if (hitBlock != -1 && hitBlock != 15 && hitBlock != 16) {
+            if (Block.isSolid(hitBlock)) {
                 return hitBlock;
             }
         }
-        return -1;
+        return Block.AIR;
     }
 
     public void cleanup() {

@@ -18,14 +18,12 @@ public class Hud {
     private static int vaoId;
     private static int vboId;
     
-    private static final int[] INVENTORY_BLOCKS = {0, 1, 2, 3, 4, 5}; 
-    
     public static void init() {
         vaoId = GL30.glGenVertexArrays();
         vboId = GL15.glGenBuffers();
     }
 
-    public static void render(ShaderProgram shader, Texture texture, int selectedBlockType) {
+    public static void render(ShaderProgram shader, Texture texture, int selectedSlot) {
         if (vaoId == 0) init();
 
         // =========================================================
@@ -34,7 +32,7 @@ public class Hud {
         float slotSize = 48f;      // Tamaño de la casilla individual
         float spacing = 2f;        // Espacio interno entre casillas
         float padding = 2f;        // <-- REDUCIDO A 2 PARA QUEDAR AL RAS DEL FONDO
-        int numBlocks = INVENTORY_BLOCKS.length;
+        int numBlocks = Constants.BLOQUES_HOTBAR.length;
 
         // Calculamos el tamaño total de la barra
         float innerWidth = (numBlocks * slotSize) + ((numBlocks - 1) * spacing);
@@ -88,7 +86,7 @@ public class Hud {
         }
 
         // --- C. Dibujar el Selector (Marco destacado) ---
-        float selectedX = startSlotX + (selectedBlockType * (slotSize + spacing));
+        float selectedX = startSlotX + (selectedSlot * (slotSize + spacing));
         float selMargin = 2f; // Abrazando perfectamente la casilla
 
         // SE ELIMINÓ EL RELLENO DEL SELECTOR PARA NO ALTERAR EL FONDO OSCURO
@@ -145,8 +143,8 @@ public class Hud {
         // Calculamos el centro de los slots para colocar los cubos
         float centerY = startSlotY + (slotSize / 2f);
 
-        for (int i = 0; i < INVENTORY_BLOCKS.length; i++) {
-            int blockId = INVENTORY_BLOCKS[i];
+        for (int i = 0; i < numBlocks; i++) {
+            int blockId = Constants.BLOQUES_HOTBAR[i];
             
             float currentSlotX = startSlotX + (i * (slotSize + spacing));
             float centerX = currentSlotX + (slotSize / 2f);

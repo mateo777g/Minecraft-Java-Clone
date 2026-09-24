@@ -2,26 +2,9 @@ package com.minejava.world.gen;
 
 import com.minejava.world.Chunk;
 
-public class WorldGenerator {
+import static com.minejava.world.Block.*;
 
-    // === IDs de Bloques ===
-    private static final int STONE = 0;
-    private static final int BEDROCK = 1;
-    private static final int DIRT = 2;
-    private static final int GRASS = 3;
-    private static final int WOOD = 4; 
-    private static final int LEAVES = 5;
-    // 6 
-    // 7 
-    private static final int CACTUS = 8; 
-    // 9
-    // 10
-    private static final int IRON_ORE = 11;
-    private static final int COAL_ORE = 12;
-    private static final int DEEPSLATE = 13; 
-    private static final int SAND = 14;
-    private static final int WATER = 15; 
-    private static final int CLOUD = 16;      
+public class WorldGenerator {
 
     public static void generateTerrain(int[][][] blocks, int chunkX, int chunkZ) {
         
@@ -89,7 +72,7 @@ public class WorldGenerator {
                 for (int y = 0; y < Chunk.CHUNK_HEIGHT; y++) {
                     if (y >= columnHeight) {
                         if (y <= nivelAgua) blocks[x][y][z] = WATER;
-                        else blocks[x][y][z] = -1; 
+                        else blocks[x][y][z] = AIR; 
                     } else if (y == 0) {
                         blocks[x][y][z] = BEDROCK;  
                     } else if (y <= 4 && Math.random() < (1.0f - (y * 0.2f))) {
@@ -182,7 +165,7 @@ public class WorldGenerator {
                 
                 if (pseudoRuido > umbralRequerido && controlDensidad > -0.15f) {
                     for (int y = 150; y <= 151; y++) {
-                        if (y < Chunk.CHUNK_HEIGHT && blocks[x][y][z] == -1) blocks[x][y][z] = CLOUD;
+                        if (y < Chunk.CHUNK_HEIGHT && blocks[x][y][z] == AIR) blocks[x][y][z] = CLOUD;
                     }
                 }
             }
@@ -203,7 +186,7 @@ public class WorldGenerator {
                 int topY = 0;
                 for (int y = Chunk.CHUNK_HEIGHT - 1; y >= 0; y--) {
                     int b = blocks[x][y][z];
-                    if (b != -1 && b != CLOUD) {
+                    if (b != AIR && b != CLOUD) {
                         topY = y;
                         break;
                     }
@@ -218,12 +201,12 @@ public class WorldGenerator {
                         int checkY = topY + i;
                         if (checkY >= Chunk.CHUNK_HEIGHT) { puedeCrecer = false; break; }
                         
-                        if (blocks[x][checkY][z] != -1) { puedeCrecer = false; break; }
+                        if (blocks[x][checkY][z] != AIR) { puedeCrecer = false; break; }
 
-                        if (blocks[x+1][checkY][z] != -1 && blocks[x+1][checkY][z] != CLOUD) puedeCrecer = false;
-                        if (blocks[x-1][checkY][z] != -1 && blocks[x-1][checkY][z] != CLOUD) puedeCrecer = false;
-                        if (blocks[x][checkY][z+1] != -1 && blocks[x][checkY][z+1] != CLOUD) puedeCrecer = false;
-                        if (blocks[x][checkY][z-1] != -1 && blocks[x][checkY][z-1] != CLOUD) puedeCrecer = false;
+                        if (blocks[x+1][checkY][z] != AIR && blocks[x+1][checkY][z] != CLOUD) puedeCrecer = false;
+                        if (blocks[x-1][checkY][z] != AIR && blocks[x-1][checkY][z] != CLOUD) puedeCrecer = false;
+                        if (blocks[x][checkY][z+1] != AIR && blocks[x][checkY][z+1] != CLOUD) puedeCrecer = false;
+                        if (blocks[x][checkY][z-1] != AIR && blocks[x][checkY][z-1] != CLOUD) puedeCrecer = false;
                         
                         if (!puedeCrecer) break;
                     }
@@ -321,7 +304,7 @@ public class WorldGenerator {
 
                             int bloque = blocks[bx][by][bz]; 
                             if (bloque == STONE || bloque == DEEPSLATE || bloque == DIRT || bloque == GRASS || bloque == SAND || bloque == IRON_ORE || bloque == COAL_ORE) { 
-                                blocks[bx][by][bz] = -1; 
+                                blocks[bx][by][bz] = AIR; 
                             } 
                         } 
                     } 
@@ -343,7 +326,7 @@ public class WorldGenerator {
                 int topY = 0;
                 for (int y = Chunk.CHUNK_HEIGHT - 1; y >= 0; y--) {
                     int b = blocks[x][y][z];
-                    if (b != -1 && b != WATER && b != CLOUD && b != LEAVES && b != WOOD && b != CACTUS) {
+                    if (b != AIR && b != WATER && b != CLOUD && b != LEAVES && b != WOOD && b != CACTUS) {
                         topY = y;
                         break;
                     }
@@ -398,5 +381,5 @@ public class WorldGenerator {
     }
     
     private static void generarArbolClasico(int[][][] blocks, int baseX, int baseY, int baseZ) { int alturaTronco = 4 + (int)(Math.random() * 2); for (int i = 0; i < alturaTronco; i++) setBlockEnGeneracion(blocks, baseX, baseY + i, baseZ, WOOD); int copaInicioY = baseY + (alturaTronco - 2); for (int y = copaInicioY; y < baseY + alturaTronco; y++) { for (int x = baseX - 2; x <= baseX + 2; x++) { for (int z = baseZ - 2; z <= baseZ + 2; z++) { if (x == baseX && z == baseZ && y < baseY + alturaTronco) continue; if ((Math.abs(x - baseX) == 2 && Math.abs(z - baseZ) == 2) && Math.random() > 0.7) continue; setBlockEnGeneracion(blocks, x, y, z, LEAVES); } } } int puntaY = baseY + alturaTronco; for (int x = baseX - 1; x <= baseX + 1; x++) { for (int z = baseZ - 1; z <= baseZ + 1; z++) setBlockEnGeneracion(blocks, x, puntaY, z, LEAVES); } setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX + 1, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX - 1, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ + 1, LEAVES); setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ - 1, LEAVES); }
-    private static void setBlockEnGeneracion(int[][][] blocks, int x, int y, int z, int blockType) { if (x >= 0 && x < Chunk.CHUNK_SIZE && y >= 0 && y < Chunk.CHUNK_HEIGHT && z >= 0 && z < Chunk.CHUNK_SIZE) { int bloqueActual = blocks[x][y][z]; if (bloqueActual == -1 || bloqueActual == LEAVES) blocks[x][y][z] = blockType; } }
+    private static void setBlockEnGeneracion(int[][][] blocks, int x, int y, int z, int blockType) { if (x >= 0 && x < Chunk.CHUNK_SIZE && y >= 0 && y < Chunk.CHUNK_HEIGHT && z >= 0 && z < Chunk.CHUNK_SIZE) { int bloqueActual = blocks[x][y][z]; if (bloqueActual == AIR || bloqueActual == LEAVES) blocks[x][y][z] = blockType; } }
 }

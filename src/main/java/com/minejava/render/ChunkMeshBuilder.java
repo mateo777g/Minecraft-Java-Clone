@@ -6,6 +6,7 @@ import java.util.ArrayList;
 
 import java.util.List;
 
+import com.minejava.world.Block;
 import com.minejava.world.Chunk;
 import com.minejava.world.World;
 
@@ -61,13 +62,13 @@ public class ChunkMeshBuilder {
 
                     int blockType = blocks[x][y][z];
 
-                    if (blockType == -1) continue;
+                    if (blockType == Block.AIR) continue;
 
 
 
-                    // === SOLO EL AGUA (15) VA AL PASE TRANSPARENTE ===
+                    // === SOLO EL AGUA VA AL PASE TRANSPARENTE ===
 
-                    boolean isTransparentBlock = (blockType == 15);
+                    boolean isTransparentBlock = (blockType == Block.WATER);
 
                  
 
@@ -153,19 +154,19 @@ public class ChunkMeshBuilder {
 
        
 
-        // Si el vecino es aire/vacío (-1), la cara obligatoriamente se ve
+        // Si el vecino es aire/vacío, la cara obligatoriamente se ve
 
-        if (neighborID == -1) return true;
+        if (neighborID == Block.AIR) return true;
 
 
 
-        // Caso 1: El bloque evaluado es AGUA (15)
+        // Caso 1: El bloque evaluado es AGUA
 
-        if (currentID == 15) {
+        if (currentID == Block.WATER) {
 
-            if (neighborID == 15) return false; // SOLUCIÓN: Si chocamos con agua vecina (del mismo u otro chunk), ocultar pared.
+            if (neighborID == Block.WATER) return false; // SOLUCIÓN: Si chocamos con agua vecina (del mismo u otro chunk), ocultar pared.
 
-            if (neighborID == 16) return true;  // Si hay una nube abajo, dejar ver el agua
+            if (neighborID == Block.CLOUD) return true;  // Si hay una nube abajo, dejar ver el agua
 
             return false; // No renderizar caras internas del agua que colisionen contra arena, tierra o piedra profunda.
 
@@ -173,11 +174,11 @@ public class ChunkMeshBuilder {
 
 
 
-        // Caso 2: El bloque evaluado es NUBE (16)
+        // Caso 2: El bloque evaluado es NUBE
 
-        if (currentID == 16) {
+        if (currentID == Block.CLOUD) {
 
-            return neighborID != 16; // Ocultar caras internas compartidas entre bloques de nubes
+            return neighborID != Block.CLOUD; // Ocultar caras internas compartidas entre bloques de nubes
 
         }
 
@@ -185,9 +186,9 @@ public class ChunkMeshBuilder {
 
         // Caso 3: El bloque evaluado es SÓLIDO (Tierra, arena, piedra, madera, etc.)
 
-        // Un bloque sólido dibuja su cara si su vecino es Agua (15), Nube (16) o Aire (-1).
+        // Un bloque sólido dibuja su cara si su vecino es Agua, Nube o Aire.
 
-        return (neighborID == 15 || neighborID == 16);
+        return (neighborID == Block.WATER || neighborID == Block.CLOUD);
 
     }
 
@@ -195,9 +196,9 @@ public class ChunkMeshBuilder {
 
     private static float[] getUVs(int blockType) {
 
-        if (blockType == 15) return new float[]{-1.0f, -1.0f, -1.0f, -1.0f};
+        if (blockType == Block.WATER) return new float[]{-1.0f, -1.0f, -1.0f, -1.0f};
 
-        if (blockType == 16) return new float[]{-2.0f, -2.0f, -2.0f, -2.0f};
+        if (blockType == Block.CLOUD) return new float[]{-2.0f, -2.0f, -2.0f, -2.0f};
 
 
 

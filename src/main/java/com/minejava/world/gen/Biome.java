@@ -1,9 +1,11 @@
 package com.minejava.world.gen;
 
+import com.minejava.world.Block;
+
 public enum Biome {
-    PLAINS(3, 2, true),    // ID Pasto, ID Tierra, Árboles Sí
-    DESERT(14, 14, false), // ID Arena, ID Arena, Árboles No
-    OCEAN(14, 14, false);  // ID Arena, ID Arena, Árboles No (Fondo del mar)
+    PLAINS(Block.GRASS, Block.DIRT, true),
+    DESERT(Block.SAND, Block.SAND, false),
+    OCEAN(Block.SAND, Block.SAND, false);  // Fondo del mar
 
     public final int surfaceBlock;
     public final int fillerBlock;
