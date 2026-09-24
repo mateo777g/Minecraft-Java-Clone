@@ -40,8 +40,7 @@ public class World {
             hilo.setDaemon(true);
             return hilo;
         });
-        
-        actualizarMundo(0, 0); 
+        // Todavía no pide ningún chunk: Partida busca el spawn y llama a actualizarMundo() con él
     }
 
     public WorldGenerator getGenerador() {

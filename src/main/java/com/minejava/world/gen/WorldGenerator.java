@@ -15,6 +15,11 @@ import static com.minejava.world.Block.*;
 // un solo bit distinto podría cambiar una nube o el camino de una cueva.
 public class WorldGenerator {
 
+    // Lo que queda vacío hasta esta altura se llena de agua
+    private static final int NIVEL_AGUA = 68;
+    // Hasta qué distancia de (0, 0), en bloques, busca buscarSpawn() tierra firme
+    private static final int RADIO_BUSQUEDA_SPAWN = 2048;
+
     private final long semilla;
     private final PerlinNoise ruido;
     private final BiomeProvider biomas;
@@ -41,8 +46,6 @@ public class WorldGenerator {
 
     public void generateTerrain(int[][][] blocks, int chunkX, int chunkZ) {
         Random rand = randomDelChunk(chunkX, chunkZ);
-        
-        int nivelAgua = 68; 
 
         // =================================================================
         // PASO 1: GENERAR TERRENO 
@@ -54,58 +57,19 @@ public class WorldGenerator {
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 
                 Biome biome = biomas.getBiome(globalX, globalZ);
-                float ruidoBiomaPuro = ruido.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
-                
-                float distorsion = (ruido.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
-                float ruidoBioma = ruidoBiomaPuro + distorsion; 
-                
-                float ruidoBase = ruido.getNoise(globalX * 0.02f, globalZ * 0.02f); 
-                int alturaOriginal = (int)(ruidoBase * 20) + 74; 
-
-                float ruidoAgua = ruido.getNoise(globalX * 0.16f, globalZ * 0.16f);
-                float distanciaAlCanal = Math.abs(ruidoAgua - 0.5f); 
-
-                int alturaBase = alturaOriginal;
-                float umbralOrilla = 0.06f; 
-                
-                if (distanciaAlCanal < umbralOrilla) {
-                    int alturaPlana = 72; 
-                    float t = (umbralOrilla - distanciaAlCanal) / (umbralOrilla - 0.04f);
-                    if (t > 1.0f) t = 1.0f; 
-                    float curva = t * t * (3.0f - 2.0f * t); 
-                    alturaBase = (int)(alturaOriginal * (1.0f - curva) + alturaPlana * curva);
-                }
-                
+                float ruidoBioma = ruidoBioma(globalX, globalZ);
+                float distanciaAlCanal = distanciaAlCanal(globalX, globalZ);
                 boolean esCuerpoAgua = distanciaAlCanal < 0.04f; 
-                int columnHeight = alturaBase;
-
-                if (esCuerpoAgua) {
-                    float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
-                    float ruidoRugoso = ruido.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
-                    columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
-                }
-
-                float ruidoOceanoProfundo = ruido.getNoise(globalX * 0.04f, globalZ * 0.04f);
-                int alturaOceano = 46 + (int)(ruidoOceanoProfundo * 14); 
-
-                if (ruidoBioma < 0.52f) {
-                    if (ruidoBioma <= 0.35f) {
-                        columnHeight = alturaOceano; 
-                    } else {
-                        float tOcean = (ruidoBioma - 0.35f) / (0.52f - 0.35f); 
-                        float curvaOcean = tOcean * tOcean * (3.0f - 2.0f * tOcean);
-                        columnHeight = (int)(alturaOceano * (1.0f - curvaOcean) + columnHeight * curvaOcean);
-                    }
-                }
+                int columnHeight = alturaColumna(globalX, globalZ, ruidoBioma, distanciaAlCanal);
 
                 boolean usarArena = false;
-                if ((esCuerpoAgua && columnHeight <= nivelAgua + 1) || ruidoBioma < 0.48f) {
+                if ((esCuerpoAgua && columnHeight <= NIVEL_AGUA + 1) || ruidoBioma < 0.48f) {
                     usarArena = true; 
                 }
 
                 for (int y = 0; y < Chunk.CHUNK_HEIGHT; y++) {
                     if (y >= columnHeight) {
-                        if (y <= nivelAgua) blocks[x][y][z] = WATER;
+                        if (y <= NIVEL_AGUA) blocks[x][y][z] = WATER;
                         else blocks[x][y][z] = AIR; 
                     } else if (y == 0) {
                         blocks[x][y][z] = BEDROCK;  
@@ -149,19 +113,15 @@ public class WorldGenerator {
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 
                 Biome biome = biomas.getBiome(globalX, globalZ);
-                float ruidoBiomaPuro = ruido.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
-                float distorsion = (ruido.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
-                float ruidoBioma = ruidoBiomaPuro + distorsion; 
-
-                float ruidoAgua = ruido.getNoise(globalX * 0.16f, globalZ * 0.16f);
-                float distanciaAlCanal = Math.abs(ruidoAgua - 0.5f); 
+                float ruidoBioma = ruidoBioma(globalX, globalZ);
+                float distanciaAlCanal = distanciaAlCanal(globalX, globalZ);
                 
                 if (distanciaAlCanal < 0.04f && ruidoBioma >= 0.50f) {
                     int alturaBase = 72; 
                     float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
                     float ruidoRugoso = ruido.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
                     int columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
-                    boolean usarArena = (columnHeight <= nivelAgua + 1);
+                    boolean usarArena = (columnHeight <= NIVEL_AGUA + 1);
                     
                     for (int y = columnHeight - 6; y < columnHeight; y++) {
                         if (y > 4) { 
@@ -169,7 +129,7 @@ public class WorldGenerator {
                             else blocks[x][y][z] = usarArena ? SAND : biome.fillerBlock;
                         }
                     }
-                    for (int y = columnHeight; y <= nivelAgua; y++) blocks[x][y][z] = WATER; 
+                    for (int y = columnHeight; y <= NIVEL_AGUA; y++) blocks[x][y][z] = WATER; 
                 }
             }
         }
@@ -204,6 +164,101 @@ public class WorldGenerator {
                 }
             }
         }
+    }
+
+    // =================================================================
+    // FÓRMULAS DE UNA COLUMNA
+    // Solo usan el ruido: dan lo mismo sin importar el chunk, el orden ni el hilo. Las usan
+    // generateTerrain() y buscarSpawn(), así el spawn se decide con las mismas cuentas que el terreno.
+    // =================================================================
+
+    // Decide océano, playa o tierra: el ruido del bioma con una pequeña distorsión
+    private float ruidoBioma(float globalX, float globalZ) {
+        float ruidoBiomaPuro = ruido.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
+        float distorsion = (ruido.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
+        return ruidoBiomaPuro + distorsion;
+    }
+
+    // Qué tan lejos está la columna del centro de un río: menos de 0.04 es agua y menos de 0.06, orilla
+    private float distanciaAlCanal(float globalX, float globalZ) {
+        float ruidoAgua = ruido.getNoise(globalX * 0.16f, globalZ * 0.16f);
+        return Math.abs(ruidoAgua - 0.5f);
+    }
+
+    // Altura del terreno en la columna, antes de las cuevas y del paso 3: el primer y vacío (aire, o agua
+    // si no pasa de NIVEL_AGUA). Aplana cerca de los ríos, cava su cauce y la hunde en los océanos.
+    private int alturaColumna(float globalX, float globalZ, float ruidoBioma, float distanciaAlCanal) {
+        float ruidoBase = ruido.getNoise(globalX * 0.02f, globalZ * 0.02f); 
+        int alturaOriginal = (int)(ruidoBase * 20) + 74; 
+
+        int alturaBase = alturaOriginal;
+        float umbralOrilla = 0.06f; 
+        
+        if (distanciaAlCanal < umbralOrilla) {
+            int alturaPlana = 72; 
+            float t = (umbralOrilla - distanciaAlCanal) / (umbralOrilla - 0.04f);
+            if (t > 1.0f) t = 1.0f; 
+            float curva = t * t * (3.0f - 2.0f * t); 
+            alturaBase = (int)(alturaOriginal * (1.0f - curva) + alturaPlana * curva);
+        }
+        
+        boolean esCuerpoAgua = distanciaAlCanal < 0.04f; 
+        int columnHeight = alturaBase;
+
+        if (esCuerpoAgua) {
+            float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
+            float ruidoRugoso = ruido.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
+            columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
+        }
+
+        float ruidoOceanoProfundo = ruido.getNoise(globalX * 0.04f, globalZ * 0.04f);
+        int alturaOceano = 46 + (int)(ruidoOceanoProfundo * 14); 
+
+        if (ruidoBioma < 0.52f) {
+            if (ruidoBioma <= 0.35f) {
+                columnHeight = alturaOceano; 
+            } else {
+                float tOcean = (ruidoBioma - 0.35f) / (0.52f - 0.35f); 
+                float curvaOcean = tOcean * tOcean * (3.0f - 2.0f * tOcean);
+                columnHeight = (int)(alturaOceano * (1.0f - curvaOcean) + columnHeight * curvaOcean);
+            }
+        }
+
+        return columnHeight;
+    }
+
+    // Dónde aparece el jugador, como en Minecraft: la primera columna de tierra firme que encuentra
+    // recorriendo en espiral desde (0, 0). Solo usa el ruido, así que no hace falta generar ningún chunk,
+    // y la misma semilla siempre da el mismo spawn. Devuelve {x, z}; si no hay tierra firme hasta
+    // RADIO_BUSQUEDA_SPAWN, (0, 0).
+    public int[] buscarSpawn() {
+        // Espiral cuadrada: 1 paso a +x, 1 a +z, 2 a -x, 2 a -z, 3 a +x... Pasa por cada columna una vez,
+        // de la más cercana a la más lejana (por anillos)
+        int x = 0, z = 0;
+        int dx = 1, dz = 0;
+        for (int largo = 1; largo <= 2 * RADIO_BUSQUEDA_SPAWN + 1; largo++) {
+            for (int tramo = 0; tramo < 2; tramo++) {
+                for (int paso = 0; paso < largo; paso++) {
+                    if (esTierraFirme(x, z)) return new int[] { x, z };
+                    x += dx;
+                    z += dz;
+                }
+                // Gira 90°
+                int giro = dx;
+                dx = -dz;
+                dz = giro;
+            }
+        }
+        return new int[] { 0, 0 };
+    }
+
+    // Si en la columna se puede aparecer de pie: no es océano ni río, y el suelo queda por encima del agua
+    private boolean esTierraFirme(float globalX, float globalZ) {
+        // De lo más barato a lo más caro: la mayoría de las columnas descartadas son de océano
+        if (biomas.getBiome(globalX, globalZ) == Biome.OCEAN) return false;
+        float distanciaAlCanal = distanciaAlCanal(globalX, globalZ);
+        if (distanciaAlCanal < 0.04f) return false; // río: el mismo umbral que esCuerpoAgua
+        return alturaColumna(globalX, globalZ, ruidoBioma(globalX, globalZ), distanciaAlCanal) > NIVEL_AGUA;
     }
 
     // --- MÉTODOS AUXILIARES ---

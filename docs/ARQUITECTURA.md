@@ -77,12 +77,12 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 5. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
 6. Arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
 
-Al hacer clic en *Un jugador* se abre *Crear mundo* (ver "Crear mundo y la semilla"). Con *Crear mundo* (o Enter), `iniciarPartida(semilla)` hace `new Partida(semilla)` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` imprime la semilla en la consola y crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks y esa semilla. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0), empezando por los más cercanos.
+Al hacer clic en *Un jugador* se abre *Crear mundo* (ver "Crear mundo y la semilla"). Con *Crear mundo* (o Enter), `iniciarPartida(semilla)` hace `new Partida(semilla)` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` imprime la semilla en la consola y crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks y esa semilla. El `World` todavía no pide ningún chunk: `Partida` busca primero el spawn (`buscarSpawn()`, ver "Dónde aparece el jugador"), lo imprime en la consola ("Spawn: x, z") y llama a `actualizarMundo()` con él. Eso pide generar 9 × 9 = 81 chunks alrededor del spawn, empezando por el suyo.
 
-Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuando el chunk del spawn, el que contiene la columna (0, 0), ya tiene su terreno y su malla en la GPU (`partida.estaLista()`), `empezarAJugar()`:
+Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuando el chunk del spawn, el que contiene su columna, ya tiene su terreno y su malla en la GPU (`partida.estaLista()`), `empezarAJugar()`:
 
 1. Captura el cursor (`GLFW_CURSOR_DISABLED`) y apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú).
-2. Llama a `partida.comenzar()`, que busca la altura de la superficie en (0, 0), pone al jugador encima, en (0.5, altura + 1, 0.5), y llama a `Input.init()`. `Input.init()` registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
+2. Llama a `partida.comenzar()`, que busca la altura de la superficie en la columna del spawn (x, z), pone al jugador encima, en (x + 0.5, altura + 1, z + 0.5), y llama a `Input.init()`. `Input.init()` registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
 3. Pasa a `JUGANDO`.
 
 Hay que esperar porque, hasta que su terreno se genera, el chunk está lleno de ceros (piedra): la "superficie" saldría en y = 200 y el jugador aparecería encima de las nubes. Esperar también a la malla hace que al entrar ya se vea el suelo.
@@ -184,11 +184,11 @@ La semilla se ve en la pausa ("Semilla: 12345") y se imprime en la consola al cr
 
 ### Cómo la semilla hace el mundo
 
-- **Forma del terreno y biomas.** Cada `World` crea un `WorldGenerator` con su semilla, y este un `PerlinNoise` propio: la semilla decide cómo se mezcla su tabla de permutación. `BiomeProvider` usa ese mismo ruido.
+- **Forma del terreno y biomas.** Cada `World` crea un `WorldGenerator` con su semilla, y este un `PerlinNoise` propio: la semilla decide cómo se mezcla su tabla de permutación y cuánto se corre cada octava (ver "Dónde aparece el jugador"). `BiomeProvider` usa ese mismo ruido.
 - **Cuevas, minerales, árboles, cactus y la roca madre.** Antes usaban `Math.random()`, que cambia cada vez. Ahora cada chunk usa su propio `Random`, creado con la semilla y la posición del chunk, igual que Minecraft: `new Random((chunkX * a + chunkZ * b) ^ semilla)`, donde `a` y `b` son dos números impares que salen de `new Random(semilla)`. Así chunks vecinos no quedan con semillas parecidas.
 - Por eso **la misma semilla da el mismo mundo** y **un chunk sale igual si se descarga y se vuelve a cargar**: lo que sale depende solo de la semilla y de la posición del chunk, no de en qué orden ni en qué hilo se genera. Los bloques que rompiste o pusiste sí se pierden al descargar el chunk, porque todavía no hay guardado.
 - El seno y el coseno de las cuevas y las nubes usan `StrictMath`, que da exactamente el mismo resultado en cualquier equipo (con `Math` podría cambiar el último bit, y eso basta para mover una nube).
-- Con la semilla 12345 la forma del terreno es la misma que la de antes, cuando estaba fija; las cuevas, los árboles y los minerales no, porque antes salían al azar.
+- Con la semilla 12345 la forma del terreno era la misma que cuando estaba fija. Desde el arreglo del spawn ya no: el desplazamiento de las octavas cambia la forma de todos los mundos, también la de 12345.
 - `WorldGenerator` lo usan varios hilos a la vez: no guarda nada que cambie al generar.
 
 **Probado sin pantalla:**
@@ -240,7 +240,7 @@ Cuando rompes o pones un bloque, `setBlockGlobal()` cambia el ID y vuelve a mand
 
 `generateTerrain()` trabaja en 5 pasos sobre el arreglo del chunk:
 
-1. **Terreno.** Para cada columna calcula la altura con ruido Perlin (base de 74 a 94), la aplana cerca de los ríos y la hunde en los océanos (46 a 60). Rellena de abajo hacia arriba: roca madre en y = 0 (y con probabilidad hasta y = 4), pizarra profunda por debajo de 38, mezcla de pizarra y piedra entre 38 y 43, piedra más arriba, y en las últimas capas el bloque de relleno y de superficie del bioma (o arena en playas y fondos de agua). Lo que queda vacío por debajo de y = 68 (el nivel del agua) se llena de agua.
+1. **Terreno.** Para cada columna calcula la altura con ruido Perlin (base de 74 a 94), la aplana cerca de los ríos y la hunde en los océanos (46 a 60). Las cuentas de una columna están en `ruidoBioma()`, `distanciaAlCanal()` y `alturaColumna()`, que también usa `buscarSpawn()`. Rellena de abajo hacia arriba: roca madre en y = 0 (y con probabilidad hasta y = 4), pizarra profunda por debajo de 38, mezcla de pizarra y piedra entre 38 y 43, piedra más arriba, y en las últimas capas el bloque de relleno y de superficie del bioma (o arena en playas y fondos de agua). Lo que queda vacío por debajo de y = 68 (`NIVEL_AGUA`) se llena de agua.
 2. **Cuevas.** Cráteres esféricos con "gusanos" que suben, y a veces una entrada desde la superficie. No excavan cerca del agua para no inundar las cuevas.
 3. **Ríos.** Vuelve a tallar los cauces sobre tierra firme y los llena de agua.
 4. **Minerales, árboles y cactus.** Vetas de carbón (hasta y = 80) y de hierro (hasta y = 50) dentro de piedra o pizarra. Árboles con 10 % de probabilidad en pasto o tierra plana, solo en llanura y con al menos 3 bloques de separación. Cactus de 1 a 3 bloques en la arena del desierto.
@@ -249,6 +249,32 @@ Cuando rompes o pones un bloque, `setBlockGlobal()` cambia el ID y vuelve a mand
 Los biomas los decide `BiomeProvider` con ruido a gran escala: océano si el valor es menor a 0.45, desierto si es mayor a 0.65 y llanura en el resto.
 
 Todo sale de la semilla del mundo: la forma del terreno y los biomas del ruido Perlin, y las cuevas, minerales, árboles, cactus y la roca madre del `Random` de cada chunk. La misma semilla siempre da el mismo mundo (ver "Crear mundo y la semilla").
+
+### Dónde aparece el jugador (`buscarSpawn()`)
+
+**El problema.** Siempre aparecías en un río. El ruido Perlin vale 0 en los puntos enteros de su cuadrícula, así que `PerlinNoise.getNoise(0, 0)` daba 0.5 con cualquier semilla. `WorldGenerator` pone el centro de un río donde el ruido del agua está cerca de 0.5 (`distanciaAlCanal < 0.04`), y el spawn estaba fijo en (0, 0).
+
+**El arreglo** tiene dos partes. La lógica del terreno (umbrales, ríos, biomas, océanos, cuevas y árboles) no cambió.
+
+1. **La semilla corre el ruido.** `PerlinNoise` saca de la semilla un desplazamiento por octava, con decimales y distinto en x y en z, y se lo suma a las coordenadas antes de calcular el ruido. Se sacan del mismo `Random` justo después de mezclar la tabla, así la tabla sale igual que antes. Van de 0 a 256 porque el ruido se repite cada 256. Así (0, 0) deja de ser especial y cada semilla tiene otro terreno ahí.
+2. **Spawn en tierra firme, como Minecraft.** `WorldGenerator.buscarSpawn()` recorre las columnas en espiral cuadrada desde (0, 0) (1 paso a +x, 1 a +z, 2 a −x, 2 a −z, 3 a +x…) y se queda con la primera donde `esTierraFirme()`: el bioma no es océano, no es río (`distanciaAlCanal` de 0.04 o más, el mismo umbral que el cauce) y `alturaColumna()` queda por encima de `NIVEL_AGUA`. Usa las mismas cuentas que `generateTerrain()` (las fórmulas de la columna se sacaron a métodos, no se copiaron), solo con el ruido: no genera ningún chunk. Si no hay tierra firme hasta `RADIO_BUSQUEDA_SPAWN` (2048 bloques), devuelve (0, 0).
+
+`Partida` lo usa para todo: el `World` ya no pide chunks alrededor de (0, 0) al crearse, sino que `Partida` busca el spawn y llama a `actualizarMundo()` con él; `estaLista()` espera al chunk del spawn y `comenzar()` pone al jugador en esa columna. La misma semilla siempre da el mismo spawn.
+
+**Probado sin pantalla** (con un programa aparte, en Linux):
+
+- Antes: `getNoise(0, 0)` daba exactamente 0.5 en 1000 de 1000 semillas. Ahora, en 509 semillas, va de 0.24 a 0.79 y no es 0.5 en ninguna. En (0, 0) sigue habiendo río en un 30 % de las semillas, pero ahí la espiral sigue buscando.
+- En 509 semillas, generando de verdad el chunk del spawn: ninguna columna del spawn tiene agua. En el 46 % el spawn queda en (0, 0) mismo; la mediana está a 2 bloques y el más lejano a 571. Con 5000 semillas, el más lejano a 734.
+- La espiral no se salta nada: para los spawns a menos de 300 bloques se revisó que ninguna columna más cercana (por anillos) fuera tierra firme.
+- La misma semilla da el mismo spawn y los mismos chunks.
+- `buscarSpawn()` tarda 0.01 ms la mitad de las veces y como mucho unos 160 ms (en 5000 semillas), cuando el spawn queda a cientos de bloques. Se hace una vez, al darle a *Crear mundo*.
+- Sacar las fórmulas a métodos no cambió nada: antes de tocar `PerlinNoise`, 7 semillas × 25 chunks dieron exactamente los mismos bloques que el código anterior.
+
+**Lo que puede pasar todavía:**
+
+- **Aparecer en un hoyo de cueva.** Los "gusanos" de las cuevas que suben a veces llegan a la superficie: pasa en un 3.8 % de todas las columnas de tierra firme, no solo en el spawn. El ruido no sabe de cuevas (salen del `Random` de cada chunk), así que `buscarSpawn()` no lo ve. En 6 de 509 semillas el spawn quedó en el fondo de uno de esos hoyos, sin agua. Ver el punto 7 de "Cosas a revisar".
+- **Aparecer encima de un árbol** (13 % de las semillas): `getAlturaSuperficie()` cuenta las hojas como suelo.
+- Muchas veces el spawn queda en la orilla de un río, porque es la primera columna fuera del cauce. Es tierra firme, a pocos bloques por encima del agua.
 
 ## Bloques
 
@@ -349,7 +375,7 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 | Bloques de la hotbar | `Constants.BLOQUES_HOTBAR` |
 | Distancia de render (en chunks) | `Partida.RENDER_DISTANCE` (4 → 9 × 9 chunks) |
 | Tamaño y altura del chunk | `Chunk.CHUNK_SIZE` (48) y `Chunk.CHUNK_HEIGHT` (200) |
-| Nivel del agua | `WorldGenerator.generateTerrain()`, `nivelAgua = 68` |
+| Nivel del agua | `WorldGenerator.NIVEL_AGUA` (68) |
 | Cómo se convierte el texto en semilla | `Semilla.desdeTexto()` |
 | Pantalla *Crear mundo* (textos, tamaños, distancias y largo máximo de la semilla) | `PantallaCrearMundo`: `TITULO`, `ETIQUETA`, `AYUDA`, `MAX_LETRAS`, `ANCHO` y las distancias de arriba abajo |
 | Aspecto del campo de texto (borde, margen, parpadeo del `_`) | `CampoTexto`: `BORDE`, `MARGEN`, `COLOR_TEXTO` y `PARPADEO` |
@@ -366,11 +392,11 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 | Qué tan oscura es la capa de la pausa | `MenuPausa.OSCURIDAD` (0 = nada, 1 = negro) |
 | Cuánto se desenfoca el fondo de la pausa | `FondoDesenfocado.SIGMA` (y `REDUCCION`, cuánto se achica antes) |
 | Texto de la pantalla de carga | `PantallaGenerando.TEXTO` |
-| Dónde aparece el jugador | `Partida.SPAWN_X` y `SPAWN_Z` |
+| Dónde aparece el jugador | `WorldGenerator.buscarSpawn()` (la espiral), `esTierraFirme()` (qué cuenta como tierra firme) y `RADIO_BUSQUEDA_SPAWN` (hasta dónde busca) |
 | Color del cielo | `Main.init()`, `glClearColor` |
 | Color del agua y de las nubes | `shaders/fragment.glsl` |
 
-`Constants.PLAYER_START_POSITION` casi no tiene efecto: en cuanto el chunk del spawn está listo, el jugador se mueve a la superficie en (0.5, altura + 1, 0.5).
+`Constants.PLAYER_START_POSITION` casi no tiene efecto: en cuanto el chunk del spawn está listo, el jugador se mueve a la superficie del spawn, en (x + 0.5, altura + 1, z + 0.5).
 
 ## Dependencias y plataforma
 
@@ -386,4 +412,5 @@ Estas salen de leer el código y no las he probado en el juego. Conviene confirm
 3. **La ventana es de tamaño fijo** (`GLFW_RESIZABLE` en falso) porque ni `glViewport`, ni la proyección, ni el HUD, ni los botones del menú, ni el fondo de la pausa se ajustan a otro tamaño: todos usan `SCREEN_WIDTH` y `SCREEN_HEIGHT`. Para poder redimensionarla habría que recalcular todo eso cuando cambia el tamaño.
 4. **La velocidad depende de los FPS**, porque el movimiento se suma por frame y no por tiempo transcurrido.
 5. **Las teclas 1–9 se leen una vez por frame** con `glfwGetKey`. Con pocos FPS, un toque más corto que un frame se puede perder. Se notó al probar con OpenGL por software (unos 10 FPS); con V-Sync a 60 FPS no debería pasar. Si pasa, se arregla igual que ESC: con un callback de teclado.
-6. **Todos los mundos tienen agua justo donde aparece el jugador.** Salió al probar las semillas (esto sí se midió, sin pantalla). El ruido Perlin vale exactamente 0,5 en los puntos enteros de su cuadrícula, y la columna (0, 0) cae en uno de esos puntos para todos los ruidos. Con el ruido de los ríos, 0,5 es justo el centro del cauce, así que con cualquier semilla hay un río en (0, 0) (y también en todas las columnas cuyas x y z son múltiplos de 125). El jugador aparece en el fondo, entre 4 y 16 bloques bajo el agua según la semilla (con 12345, 10 bloques: el y = 59 de la fase 4 del menú). Se podría arreglar desplazando las coordenadas del ruido con un valor sacado de la semilla, pero entonces el spawn a veces caería en el océano, así que también habría que buscar tierra firme para el spawn o ponerlo encima del agua.
+6. **~~Todos los mundos tienen agua justo donde aparece el jugador.~~ Arreglado.** El ruido Perlin valía 0,5 en (0, 0) con cualquier semilla, justo el centro de un río, y el jugador aparecía en el fondo, bajo 4 a 16 bloques de agua. Ahora la semilla corre el ruido y el spawn se busca en espiral hasta encontrar tierra firme (ver "Dónde aparece el jugador").
+7. **Las cuevas abren hoyos en la superficie.** Los "gusanos" de las cuevas suben 120 a 160 pasos desde y = 12–30 y muchas veces atraviesan el suelo: en un 3.8 % de las columnas de tierra firme la superficie queda más abajo de lo que dice el ruido (medido sin pantalla, 20 semillas × 25 chunks). Solo se protegen las columnas con agua o arena. A veces el spawn cae en uno de esos hoyos (6 de 509 semillas). Si molesta, se podría revisar la columna del spawn después de generar su chunk y, si quedó más abajo que `alturaColumna()`, seguir la espiral; o no dejar que los gusanos pasen de cierta altura (eso sí cambia las cuevas).

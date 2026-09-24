@@ -1,6 +1,6 @@
 # Plan: menú de inicio
 
-**Estado:** las seis fases están hechas. Falta probar la fase 6 en Windows (ver la tabla "Estado de las fases").
+**Estado:** las seis fases están hechas. Falta probar la fase 6 en Windows (ver la tabla "Estado de las fases"). Después se hizo un arreglo aparte, el del spawn en un río (ver "Arreglos fuera de las fases").
 
 ## Cómo trabajamos: una fase por conversación y `/clear` entre fases
 
@@ -21,6 +21,12 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 | 4. Pantalla de "Generando mundo…" | hecha y probada en Windows | `5b4d141` | Nada. El usuario lo probó el 2026-09-24 y funciona bien. |
 | 5. Pausa y volver al menú | hecha y probada en Windows | `a93fa50` | Nada. El usuario lo probó el 2026-09-24 y todo funciona bien: ESC abre y cierra la pausa, el fondo desenfocado con la capa oscura, los botones *Volver al juego* y *Salir al menú*, y entrar y salir del mundo varias veces. |
 | 6. Crear mundo con semilla (opcional) | hecha (compila; probada sin GPU en Linux) | `0a69f5a` | Que *Un jugador* abra *Crear mundo* con el mismo estilo del menú (fondo de tierra, título, *Semilla*, el campo, la ayuda y los botones *Crear mundo* y *Cancelar*) y con el campo vacío. Que se pueda escribir con tildes y ñ, borrar (también manteniendo Borrar) y pegar con Ctrl+V. Que *Cancelar* y ESC vuelvan al menú sin abrir la pausa, y que Enter cree el mundo. Que dos mundos con la misma semilla salgan iguales (mismo lugar al aparecer, mismos árboles, cuevas y nubes) y que dos sin semilla salgan distintos. Que la pausa diga "Semilla: ..." con el número correcto (12345 → 12345, "hola" → 3208380). Que un chunk se vea igual después de alejarse y volver. |
+
+### Arreglos fuera de las fases
+
+| Arreglo | Estado | Commit | Qué falta probar en Windows |
+| --- | --- | --- | --- |
+| Spawn en tierra firme (siempre aparecías en un río) | hecho (compila; probado sin GPU en Linux) | pendiente | Crear varios mundos (con semilla y sin ella) y ver que apareces de pie en tierra, no en un río ni en el océano. Que la consola diga "Spawn: x, z" y que la misma semilla dé el mismo spawn y el mismo mundo (12345 → spawn en (0, 0), sobre pasto; 1 → spawn en (346, −345), sobre arena). Que "Generando mundo..." siga durando poco aunque el spawn quede lejos de (0, 0), y que al caminar carguen los chunks normal. Detalles en `ARQUITECTURA.md`, "Dónde aparece el jugador". |
 
 ## La idea
 
@@ -211,7 +217,7 @@ Hoy todos los mundos tienen la misma forma, porque `PerlinNoise` usa la semilla 
 - **Generación:** `PerlinNoise` dejó de ser estático: cada `World` tiene un `WorldGenerator` con su semilla, que tiene su propio `PerlinNoise` y `BiomeProvider`. Todos los `Math.random()` de `WorldGenerator` se cambiaron por un `Random` por chunk hecho con (semilla, chunkX, chunkZ), como Minecraft. Seno y coseno con `StrictMath`, que da lo mismo en cualquier equipo.
 - **Pausa:** debajo de los botones dice "Semilla: ...". La semilla también se imprime en la consola al crear el mundo.
 - **Se probó sin GPU**, en Linux: sin pantalla, los 81 chunks alrededor del spawn salen idénticos con la misma semilla (uno por uno o con 4 hilos en otro orden) y generar un chunk tarda lo mismo que antes. Con Xvfb y un programa con `java.awt.Robot`: dos mundos con la semilla 12345 dieron capturas idénticas píxel por píxel; uno sin semilla cambió el 96 % de la pantalla. Detalles en `ARQUITECTURA.md`, "Crear mundo y la semilla".
-- **Se encontró otra cosa:** con cualquier semilla hay un río justo en el spawn (0, 0) y el jugador aparece en el fondo, bajo 4 a 16 bloques de agua. Pasaba igual con la semilla fija. Está explicado en `ARQUITECTURA.md`, punto 6 de "Cosas a revisar"; no se arregló porque no es parte de esta fase.
+- **Se encontró otra cosa:** con cualquier semilla hay un río justo en el spawn (0, 0) y el jugador aparece en el fondo, bajo 4 a 16 bloques de agua. Pasaba igual con la semilla fija. No se arregló en esta fase porque no era parte de ella; se arregló después, aparte (ver "Arreglos fuera de las fases").
 
 ## Fuera de este plan
 

@@ -5,7 +5,16 @@ import java.util.Random;
 // Ruido Perlin 2D. Cada mundo tiene el suyo: la semilla decide cómo se mezcla la tabla de permutación,
 // así la misma semilla siempre da el mismo ruido (y el mismo terreno) y otra semilla da otro.
 public class PerlinNoise {
+    // Cuántas ondas se suman en getNoise(): una grande y otras más chicas para el detalle
+    private static final int OCTAVAS = 3;
+
     private final int[] p = new int[512];
+    // Cuánto se corre cada octava, sacado de la semilla. El ruido Perlin vale 0 en los puntos enteros de su
+    // cuadrícula, así que sin esto getNoise(0, 0) daba 0.5 con cualquier semilla y la columna (0, 0) era
+    // igual en todos los mundos: siempre el centro de un río. Tiene decimales para no caer en otro punto
+    // entero, y es distinto en cada octava para que tampoco coincidan entre ellas.
+    private final float[] desplazamientoX = new float[OCTAVAS];
+    private final float[] desplazamientoZ = new float[OCTAVAS];
 
     public PerlinNoise(long semilla) {
         Random rand = new Random(semilla);
@@ -23,6 +32,12 @@ public class PerlinNoise {
         for (int i = 0; i < 256; i++) {
             p[256 + i] = p[i];
         }
+        // Después de mezclar, así la tabla sale igual que antes para la misma semilla.
+        // Entre 0 y 256 alcanza: el ruido se repite cada 256 (por el "& 255" de noise()).
+        for (int i = 0; i < OCTAVAS; i++) {
+            desplazamientoX[i] = rand.nextFloat() * 256;
+            desplazamientoZ[i] = rand.nextFloat() * 256;
+        }
     }
 
     // El método principal que llamaremos desde el Chunk
@@ -33,8 +48,8 @@ public class PerlinNoise {
         float maxValue = 0;  
         
         // 3 Octavas: combina ondas grandes con detalles pequeños para más realismo
-        for (int i = 0; i < 3; i++) {
-            total += noise(x * frequency, z * frequency) * amplitude;
+        for (int i = 0; i < OCTAVAS; i++) {
+            total += noise(x * frequency + desplazamientoX[i], z * frequency + desplazamientoZ[i]) * amplitude;
             maxValue += amplitude;
             amplitude *= 0.5f;
             frequency *= 2.0f;

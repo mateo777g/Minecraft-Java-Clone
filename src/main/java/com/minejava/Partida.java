@@ -22,11 +22,11 @@ import com.minejava.world.World;
 public class Partida {
 
     private static final int RENDER_DISTANCE = 4; // 4 → 9 × 9 chunks
-    // Columna donde aparece el jugador
-    private static final int SPAWN_X = 0;
-    private static final int SPAWN_Z = 0;
 
     private final long semilla;
+    // Columna donde aparece el jugador: la tierra firme más cercana a (0, 0) (WorldGenerator.buscarSpawn())
+    private final int spawnX;
+    private final int spawnZ;
     private final PlayerController jugador;
     private final Camera camara;
     private final World mundo;
@@ -35,8 +35,8 @@ public class Partida {
     private int ultimoChunkX = Integer.MAX_VALUE;
     private int ultimoChunkZ = Integer.MAX_VALUE;
 
-    // Crea el mundo, que empieza a generar sus chunks en otros hilos. El jugador todavía no tiene
-    // spawn: eso lo hace comenzar(), cuando el terreno ya existe.
+    // Crea el mundo, busca el spawn y empieza a generar los chunks a su alrededor en otros hilos. El jugador
+    // todavía no se mueve ahí: eso lo hace comenzar(), cuando el terreno ya existe.
     public Partida(long semilla) {
         this.semilla = semilla;
         jugador = new PlayerController(Constants.PLAYER_START_POSITION);
@@ -44,6 +44,14 @@ public class Partida {
 
         System.out.println("Semilla del mundo: " + semilla);
         mundo = new World(RENDER_DISTANCE, semilla);
+
+        // Sale solo del ruido, sin generar chunks: la misma semilla siempre da el mismo spawn
+        int[] spawn = mundo.getGenerador().buscarSpawn();
+        spawnX = spawn[0];
+        spawnZ = spawn[1];
+        System.out.println("Spawn: " + spawnX + ", " + spawnZ);
+        // Los chunks alrededor del spawn, empezando por el suyo
+        mundo.actualizarMundo(spawnX, spawnZ);
     }
 
     // Se muestra en la pausa, para poder anotarla y crear el mismo mundo otra vez
@@ -61,13 +69,13 @@ public class Partida {
     // todos piedra y el jugador aparecería en y = 200, encima de las nubes. Además se espera a que su
     // malla esté en la GPU, así al entrar ya se ve el suelo.
     public boolean estaLista() {
-        return mundo.estaGenerado(SPAWN_X, SPAWN_Z) && mundo.estaListoParaRenderizar(SPAWN_X, SPAWN_Z);
+        return mundo.estaGenerado(spawnX, spawnZ) && mundo.estaListoParaRenderizar(spawnX, spawnZ);
     }
 
     // Pone al jugador encima de la superficie y activa los controles. Solo cuando estaLista().
     public void comenzar(long window) {
-        float spawnY = mundo.getAlturaSuperficie(SPAWN_X, SPAWN_Z);
-        jugador.setPosition(new Vector3f(SPAWN_X + 0.5f, spawnY + 1.0f, SPAWN_Z + 0.5f));
+        float spawnY = mundo.getAlturaSuperficie(spawnX, spawnZ);
+        jugador.setPosition(new Vector3f(spawnX + 0.5f, spawnY + 1.0f, spawnZ + 0.5f));
 
         Input.init(window, camara, mundo, jugador);
     }
