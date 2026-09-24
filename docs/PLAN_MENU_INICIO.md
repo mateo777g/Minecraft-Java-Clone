@@ -15,7 +15,7 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 
 | Fase | Estado | Commit | Qué falta probar en Windows |
 | --- | --- | --- | --- |
-| 1. Sacar la partida de `Main` | pendiente | | |
+| 1. Sacar la partida de `Main` | hecha (compila) | `35fc81b` | Que el juego se vea y se juegue igual que antes: moverse, romper y poner bloques, rueda y teclas 1–9 de la hotbar, pick block, que carguen chunks al caminar y que se cierre sin errores. |
 | 2. Estados y un menú mínimo | pendiente | | |
 | 3. Texto | pendiente | | |
 | 4. Pantalla de "Generando mundo…" | pendiente | | |
