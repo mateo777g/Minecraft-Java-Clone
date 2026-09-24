@@ -124,6 +124,8 @@ src/main/java/com/minejava/
 │   ├── PantallaCrearMundo.java   # Crear mundo: campo Semilla y botones Crear mundo y Cancelar
 │   ├── PantallaGenerando.java    # Pantalla de "Generando mundo..."
 │   └── Texto.java                # Dibuja texto con la fuente de píxeles
+├── debug/
+│   └── MedidorRendimiento.java   # Frames lentos, GC y chunks en la consola (Constants.MEDIR_RENDIMIENTO)
 └── config/
     └── Constants.java            # Configuración general y bloques de la hotbar
 
@@ -131,7 +133,7 @@ src/main/resources/
 ├── shaders/                 # Vertex shader y fragment shader
 └── textures/                # Atlas del terreno, fuente de píxeles y título del menú
 
-herramientas/                # Generan fuente.png y titulo.png (ver docs/ARQUITECTURA.md)
+herramientas/                # Generan fuente.png y titulo.png, y miden los chunks sin pantalla (ver docs/ARQUITECTURA.md)
 docs/                        # Documentación del proyecto (ver abajo)
 ```
 
@@ -139,7 +141,7 @@ docs/                        # Documentación del proyecto (ver abajo)
 
 - [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): cómo está organizado el código y cómo funciona cada parte (arranque, ciclo del juego, chunks, generación del terreno, bloques, render y controles), dónde cambiar cada cosa y una lista de cosas a revisar.
 - [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md): el plan por fases del menú de inicio y cómo quedó cada fase.
-- [`docs/PLAN_OPTIMIZACION.md`](docs/PLAN_OPTIMIZACION.md): el plan por fases para quitar los tirones al cargar chunks (lo siguiente).
+- [`docs/PLAN_OPTIMIZACION.md`](docs/PLAN_OPTIMIZACION.md): el plan por fases para quitar los tirones al cargar chunks (en curso), con cómo medir y las mediciones.
 - [`docs/PLAN_REESTRUCTURACION.txt`](docs/PLAN_REESTRUCTURACION.txt): la reorganización de carpetas que ya se aplicó y qué cambió.
 - [`CLAUDE.md`](CLAUDE.md): cómo trabaja Claude en el proyecto (una fase por conversación y `/clear` entre fases).
 

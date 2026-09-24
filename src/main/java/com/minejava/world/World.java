@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.minejava.debug.MedidorRendimiento;
 import com.minejava.player.Camera;
 import com.minejava.player.PlayerController;
 import com.minejava.world.gen.WorldGenerator;
@@ -47,6 +48,12 @@ public class World {
         return generador;
     }
 
+    // Solo para herramientas/MedirChunks.java: mete un chunk en el mapa sin mandarlo a los hilos, así la
+    // herramienta genera el terreno y arma las mallas cuando quiere y las mide
+    public void agregarChunk(Chunk chunk) {
+        chunksActivos.put(generarClave(chunk.getChunkX(), chunk.getChunkZ()), chunk);
+    }
+
     private long generarClave(int cx, int cz) {
         return (((long) cx) << 32) | (cz & 0xffffffffL);
     }
@@ -66,6 +73,7 @@ public class World {
         // Los más cercanos al jugador primero: el pool los genera en el orden en que llegan, así el chunk
         // donde aparece el jugador sale enseguida y la pantalla de "Generando mundo..." dura poco
         faltantes.sort(Comparator.comparingInt(d -> d[0] * d[0] + d[1] * d[1]));
+        MedidorRendimiento.chunksPedidos(faltantes.size());
 
         for (int[] d : faltantes) {
             int targetCX = centroChunkX + d[0];
@@ -99,6 +107,9 @@ public class World {
             Chunk c = chunksListosParaGL.poll();
             if (c != null && chunksActivos.containsValue(c)) {
                 c.cargarMallaEnOpenGL(); 
+            } else if (c != null) {
+                // Su chunk salió del rango mientras se armaba: la malla se tira sin subirla
+                MedidorRendimiento.mallaDescartada();
             }
         }
     }

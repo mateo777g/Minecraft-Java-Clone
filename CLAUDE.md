@@ -25,4 +25,9 @@ Clon de Minecraft en Java 21 con LWJGL 3 y Maven. Todo el contexto necesario est
 ## Pruebas
 
 - Aquí no se puede abrir el juego (no hay pantalla ni GPU). Verificar con `mvn clean compile` / `mvn package`; la prueba visual la hace el usuario en Windows, ejecutando `com.minejava.Main.Launcher`.
-- En la optimización, medir aquí con la herramienta sin pantalla de la fase 1 y pedirle al usuario que pegue la salida de la consola del juego en Windows.
+- En la optimización, medir aquí con la herramienta sin pantalla de la fase 1 y pedirle al usuario que pegue la salida de la consola del juego en Windows (ver "Cómo medir" en `docs/PLAN_OPTIMIZACION.md`). La herramienta se corre así, y tiene que terminar con "El mundo no cambió":
+
+  ```text
+  mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
+  java -cp "target/classes:$(cat target/classpath.txt)" herramientas/MedirChunks.java
+  ```

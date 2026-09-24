@@ -16,10 +16,11 @@ com/minejava/
 │   └── gen/           Generación procedural del terreno
 ├── player/            Jugador, cámara y entrada (teclado y ratón)
 ├── ui/                Interfaz 2D (menú de inicio, crear mundo, pantalla de carga, pausa, texto, hotbar y mira)
+├── debug/             Medidor de rendimiento: frames lentos, GC y chunks en la consola
 └── config/            Constantes de configuración
 ```
 
-Fuera del código del juego está `herramientas/`, con dos programas que generan imágenes del juego (ver "Texto y título").
+Fuera del código del juego está `herramientas/`, con dos programas que generan imágenes del juego (ver "Texto y título") y uno que mide los chunks sin pantalla (ver "Medir el rendimiento").
 
 | Paquete | Clase | Qué hace |
 | --- | --- | --- |
@@ -29,7 +30,7 @@ Fuera del código del juego está `herramientas/`, con dos programas que generan
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
 | `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). Guarda su tamaño (`getAncho()`, `getAlto()`). |
 | `render` | `ChunkMeshBuilder` | Convierte los bloques de un chunk en una lista de vértices, dibujando solo las caras visibles. |
-| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. `estaCerrado()` avisa a los hilos que el mundo ya se liberó. Tiene el `WorldGenerator` de su semilla. |
+| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. `estaCerrado()` avisa a los hilos que el mundo ya se liberó. Tiene el `WorldGenerator` de su semilla. `agregarChunk()` solo lo usa `herramientas/MedirChunks.java`. |
 | `world` | `Chunk` | Un pedazo de 48 × 200 × 48 bloques con sus mallas (opaca y transparente) en la GPU. |
 | `world` | `Block` | Los IDs de todos los bloques y `isSolid()`. |
 | `world.gen` | `WorldGenerator` | Llena un chunk: terreno, cuevas, ríos, minerales, árboles, cactus y nubes. Hay uno por mundo, hecho con su semilla; lo que es al azar sale de un `Random` propio de cada chunk (ver "Crear mundo y la semilla"). |
@@ -50,7 +51,8 @@ Fuera del código del juego está `herramientas/`, con dos programas que generan
 | `ui` | `FondoTierra` | El fondo de las pantallas de menú: la casilla de tierra del atlas repetida por toda la pantalla y oscurecida. |
 | `ui` | `Boton` | Un rectángulo gris con texto que sabe si el ratón está encima. Cuando lo está, se aclara, le sale un borde blanco y el texto se pone amarillo claro. |
 | `ui` | `Texto` | Dibuja texto con la fuente de píxeles `fuente.png`, con sombra como en Minecraft. Sabe medir un texto, centrarlo y decir si una letra está en la fuente. |
-| `config` | `Constants` | Tamaño y título de la ventana, sensibilidad del ratón, posición inicial y bloques de la hotbar. |
+| `debug` | `MedidorRendimiento` | Mide cuánto tarda cada parte de los frames de la partida, el GC y el trabajo de los hilos generadores, y lo imprime en la consola (ver "Medir el rendimiento"). |
+| `config` | `Constants` | Tamaño y título de la ventana, sensibilidad del ratón, posición inicial, bloques de la hotbar y si el medidor de rendimiento está prendido (`MEDIR_RENDIMIENTO`). |
 
 Recursos en `src/main/resources/`:
 
@@ -131,6 +133,8 @@ Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `J
 8. `Hud.render()`: dibuja la hotbar y la mira encima de todo.
 9. Intercambia buffers y procesa eventos (`glfwPollEvents`). Los callbacks del ratón corren aquí.
 
+Entre estos pasos, `Main` y `Partida` llaman a `MedidorRendimiento.marcar()` para medir cuánto tarda cada uno (ver "Medir el rendimiento"). Con el medidor apagado no hace nada.
+
 **`PAUSA`:** no se llama a `partida.update()`, así que el jugador no se mueve, no se cargan chunks y no se suben mallas.
 
 1. Limpia la pantalla.
@@ -204,7 +208,7 @@ La semilla se ve en la pausa ("Semilla: 12345") y se imprime en la consola al cr
 
 - Cada `Chunk` mide `CHUNK_SIZE` × `CHUNK_HEIGHT` × `CHUNK_SIZE` = 48 × 200 × 48 bloques.
 - Los bloques se guardan en `int[x][y][z]`, un ID por bloque. Son unos 1.8 MB de RAM por chunk (~150 MB con 81 chunks).
-- `World` guarda los chunks activos en un `ConcurrentHashMap<Long, Chunk>`. La clave junta `chunkX` y `chunkZ` en un `long`.
+- `World` guarda los chunks activos en un `ConcurrentHashMap<Long, Chunk>`. La clave junta `chunkX` y `chunkZ` en un `long`. Ojo: el `hashCode()` de ese `Long` es `chunkX ^ chunkZ`, así que muchas claves chocan (las 81 caen en 16 cubetas) y buscar un chunk es lento y reserva memoria (ver `PLAN_OPTIMIZACION.md`).
 - Para pasar de coordenadas del mundo a coordenadas del chunk se usa `Math.floorDiv` y `Math.floorMod`, así funciona bien con coordenadas negativas.
 
 ### De "hace falta un chunk" a "se ve en pantalla"
@@ -366,6 +370,20 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 - **Pick block (clic central):** si el bloque que miras está en la hotbar, selecciona esa casilla.
 - **Hotbar:** `Input` guarda la **casilla** seleccionada (empieza en la 4, el pasto). `getSelectedBlockType()` traduce esa casilla al ID del bloque con `Constants.BLOQUES_HOTBAR`.
 
+## Medir el rendimiento
+
+Es la fase 1 de `PLAN_OPTIMIZACION.md`, que tiene los detalles y las mediciones.
+
+- **En el juego:** `debug/MedidorRendimiento`, prendido con `Constants.MEDIR_RENDIMIENTO`. Solo mide los frames de `JUGANDO`. Cada frame se parte en `limpiar`, `jugador`, `mundo` (`actualizarMundo()`), `mallas` (`procesarMallasPendientes()`), `render` y `swap` (con V-Sync, la espera al monitor). Imprime en la consola, con el prefijo `[medidor]`, cada frame de 25 ms o más con su desglose y si hubo GC; cada 5 s de juego un resumen (FPS, peor frame, GC, heap y chunks pedidos, armados, subidos y descartados); y al terminar la partida el total. Además, `Chunk.generarTerrenoAsincrono()` le avisa cuánto tardó cada chunk y cuánta memoria reservó su hilo, y `World` y `Chunk` cuántos chunks se pidieron, subieron o descartaron. Lo que imprime va sin tildes, para que se vea bien en cualquier consola de Windows.
+- **Sin pantalla:** `herramientas/MedirChunks.java` mide un chunk en un solo hilo (tiempo y memoria de cada paso), simula cruzar un borde con los hilos generadores (GC y un hilo "sonda" que hace de hilo principal) y comprueba que el mundo no cambió comparando los bloques y las mallas con `herramientas/referencia_mallas.txt`. Necesita las clases del juego compiladas:
+
+```text
+mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
+java -cp "target/classes:$(cat target/classpath.txt)" herramientas/MedirChunks.java
+```
+
+En Windows (PowerShell) el separador es `;`: `java -cp "target/classes;$(Get-Content target/classpath.txt)" herramientas/MedirChunks.java`.
+
 ## Dónde cambiar cada cosa
 
 | Qué | Dónde |
@@ -395,6 +413,8 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 | Dónde aparece el jugador | `WorldGenerator.buscarSpawn()` (la espiral), `esTierraFirme()` (qué cuenta como tierra firme) y `RADIO_BUSQUEDA_SPAWN` (hasta dónde busca) |
 | Color del cielo | `Main.init()`, `glClearColor` |
 | Color del agua y de las nubes | `shaders/fragment.glsl` |
+| Prender o apagar el medidor de rendimiento | `Constants.MEDIR_RENDIMIENTO` |
+| Desde cuántos ms un frame es lento y cada cuánto sale el resumen | `MedidorRendimiento.FRAME_LENTO_MS` y `RESUMEN_CADA_MS` |
 
 `Constants.PLAYER_START_POSITION` casi no tiene efecto: en cuanto el chunk del spawn está listo, el jugador se mueve a la superficie del spawn, en (x + 0.5, altura + 1, z + 0.5).
 

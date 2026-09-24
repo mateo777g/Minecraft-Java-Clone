@@ -8,6 +8,8 @@ import org.joml.Vector3f;
 import java.nio.FloatBuffer;
 
 import com.minejava.config.Constants;
+import com.minejava.debug.MedidorRendimiento;
+import com.minejava.debug.MedidorRendimiento.Parte;
 import com.minejava.player.Camera;
 import com.minejava.player.Input;
 import com.minejava.player.PlayerController;
@@ -97,6 +99,7 @@ public class Partida {
 
         jugador.update(window, camara.getYaw(), mundo);
         camara.updatePosition(jugador.getPosition(), jugador.getCameraHeight());
+        MedidorRendimiento.marcar(Parte.JUGADOR);
 
         int chunkActualX = Math.floorDiv(Math.round(jugador.getPosition().x), Chunk.CHUNK_SIZE);
         int chunkActualZ = Math.floorDiv(Math.round(jugador.getPosition().z), Chunk.CHUNK_SIZE);
@@ -106,8 +109,10 @@ public class Partida {
             ultimoChunkX = chunkActualX;
             ultimoChunkZ = chunkActualZ;
         }
+        MedidorRendimiento.marcar(Parte.MUNDO);
 
         mundo.procesarMallasPendientes();
+        MedidorRendimiento.marcar(Parte.MALLAS);
     }
 
     // Dibuja el mundo y encima el HUD
@@ -134,6 +139,7 @@ public class Partida {
 
     // Al salir al menú o cerrar el juego. Después hay que olvidarse de la partida (partida = null).
     public void cleanup(long window) {
+        MedidorRendimiento.terminarPartida();
         Input.desactivar(window);
         mundo.cleanup();
         MemoryUtil.memFree(matrixBuffer);

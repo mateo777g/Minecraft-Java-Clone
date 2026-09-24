@@ -8,6 +8,8 @@ import org.lwjgl.opengl.GL11;
 import org.joml.Matrix4f;
 
 import com.minejava.config.Constants;
+import com.minejava.debug.MedidorRendimiento;
+import com.minejava.debug.MedidorRendimiento.Parte;
 import com.minejava.render.ShaderProgram;
 import com.minejava.render.Texture;
 import com.minejava.ui.Hud;
@@ -167,6 +169,7 @@ public class Main {
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
         while (!GLFW.glfwWindowShouldClose(window)) {
+            MedidorRendimiento.empezarFrame();
             GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
 
             // Se revisa antes del switch para que la pantalla nueva ya se dibuje en este frame.
@@ -196,8 +199,10 @@ public class Main {
                     if (partida.estaLista()) empezarAJugar();
                 }
                 case JUGANDO -> {
+                    MedidorRendimiento.marcar(Parte.LIMPIAR);
                     partida.update(window);
                     partida.render(shader, blockTexture, projectionMatrix);
+                    MedidorRendimiento.marcar(Parte.RENDER);
                 }
                 case PAUSA -> {
                     // Sin partida.update(): el jugador no se mueve y los chunks no se actualizan
@@ -210,6 +215,8 @@ public class Main {
 
             GLFW.glfwSwapBuffers(window);
             GLFW.glfwPollEvents();
+            // Solo cuenta si fue un frame de la partida (JUGANDO); el swap es lo que queda desde la última marca
+            MedidorRendimiento.terminarFrame();
         }
     }
     

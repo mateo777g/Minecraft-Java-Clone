@@ -8,6 +8,7 @@ import org.lwjgl.system.MemoryUtil;
 
 import java.nio.FloatBuffer;
 
+import com.minejava.debug.MedidorRendimiento;
 import com.minejava.render.ChunkMeshBuilder;
 
 public class Chunk {
@@ -52,11 +53,17 @@ public class Chunk {
     // 1. TRABAJO DE CPU (HILO SECUNDARIO) - ¡Aquí no se puede usar OpenGL!
     // ========================================================================
     public void generarTerrenoAsincrono() {
+        // Para el medidor: cuánto tarda cada paso y cuánta memoria reserva este hilo
+        long inicio = System.nanoTime();
+        long bytesInicio = MedidorRendimiento.bytesReservadosHilo();
+        boolean conTerreno = !terrenoGenerado;
+
         // Solo generamos el Perlin Noise la primera vez. Con la semilla del mundo: siempre sale igual.
         if (!terrenoGenerado) {
             world.getGenerador().generateTerrain(this.blocks, this.chunkX, this.chunkZ);
             terrenoGenerado = true;
         }
+        long finTerreno = System.nanoTime();
 
         // Si se salió al menú mientras tanto, el mapa ya está vacío: sin vecinos, la malla saldría con
         // todas las caras y tardaría muchísimo, y nadie la va a dibujar
@@ -65,6 +72,9 @@ public class Chunk {
         // Construimos las mallas y las dejamos en "bandeja de espera"
         this.pendingOpaqueVertices = ChunkMeshBuilder.buildOpaqueMesh(world, blocks, chunkX, chunkZ);
         this.pendingTransparentVertices = ChunkMeshBuilder.buildTransparentMesh(world, blocks, chunkX, chunkZ);
+
+        MedidorRendimiento.chunkArmado(conTerreno, finTerreno - inicio, System.nanoTime() - finTerreno,
+                MedidorRendimiento.bytesReservadosHilo() - bytesInicio);
     }
 
     // ========================================================================
@@ -123,6 +133,7 @@ public class Chunk {
 
         GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
         GL30.glBindVertexArray(0);
+        MedidorRendimiento.mallaSubida((long) (opaqueVertexCount + transparentVertexCount) * 5 * Float.BYTES);
         
         // ¡Listo! Ya podemos decirle al World que nos dibuje
         this.readyToRender = true;
