@@ -18,7 +18,7 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 | 1. Sacar la partida de `Main` | hecha (compila) | `35fc81b` | Que el juego se vea y se juegue igual que antes: moverse, romper y poner bloques, rueda y teclas 1–9 de la hotbar, pick block, que carguen chunks al caminar y que se cierre sin errores. |
 | 2. Estados y un menú mínimo | hecha (compila) | `33c3d1b` | Que al abrir salga el menú (fondo de tierra oscura, botón verde *Jugar* y rojo *Salir*); que cada botón se aclare y tenga borde blanco al pasar el ratón; que *Jugar* entre al mundo sin salto de cámara y *Salir* cierre el juego; que el clic en *Jugar* no rompa ni ponga un bloque; que la ventana ya no se pueda agrandar. |
 | 3. Texto | hecha y probada en Windows | `7a1844c` | Nada. El usuario lo probó el 2026-09-24: el título, los botones grises con *Un jugador* y *Salir* y el hover se ven bien; *Un jugador* entra al mundo y el HUD se ve igual que antes. |
-| 4. Pantalla de "Generando mundo…" | pendiente | | |
+| 4. Pantalla de "Generando mundo…" | hecha (compila) | `5b4d141` | Que al darle a *Un jugador* salga el fondo de tierra con *Generando mundo...* (puede durar solo un instante) y después aparezcas parado sobre el suelo, nunca en el cielo; probarlo varias veces. Que al entrar la cámara no salte y el clic de *Un jugador* no rompa un bloque. Que el mundo cargue de adentro hacia afuera. Que cerrar la ventana durante *Generando mundo...* termine el programa enseguida. Mirar si hay huecos en los bordes de chunk alrededor del spawn (punto 2 de "Cosas a revisar"). |
 | 5. Pausa y volver al menú | pendiente | | |
 | 6. Crear mundo con semilla (opcional) | pendiente | | |
 
