@@ -1,6 +1,6 @@
 # Plan: menú de inicio
 
-**Estado:** en curso. Las fases 1 a 5 están hechas; la siguiente es la fase 6 (ver la tabla "Estado de las fases").
+**Estado:** las seis fases están hechas. Falta probar la fase 6 en Windows (ver la tabla "Estado de las fases").
 
 ## Cómo trabajamos: una fase por conversación y `/clear` entre fases
 
@@ -200,6 +200,18 @@ Hoy todos los mundos tienen la misma forma, porque `PerlinNoise` usa la semilla 
 - `PerlinNoise` recibe la semilla (en lugar de fijarla en un bloque `static`). Lo más limpio es que deje de ser estático y que cada partida tenga el suyo.
 - `WorldGenerator` usa un `Random` por chunk creado a partir de (semilla, chunkX, chunkZ) en lugar de `Math.random()`. Así la misma semilla da el mismo mundo, y un chunk sale igual si se descarga y se vuelve a cargar.
 - Una pantalla *Crear mundo* con un campo de texto para la semilla (se escribe con `glfwSetCharCallback`).
+
+**Lista cuando:** la misma semilla da el mismo mundo, sin semilla sale uno distinto cada vez y la semilla se ve en la pausa.
+
+**Cómo quedó:**
+
+- **Pantalla *Crear mundo*** (`PantallaCrearMundo`, estado `CREAR_MUNDO`): se abre con *Un jugador*. El fondo de tierra, el título, *Semilla* en gris, el campo de texto (`CampoTexto`, fondo negro y borde blanco como en Minecraft), la ayuda "Déjala vacía para una semilla al azar" y *Crear mundo* y *Cancelar* uno al lado del otro. El campo empieza vacío cada vez.
+- **Teclado:** `Main` registra `glfwSetCharCallback` y, mientras el estado es `CREAR_MUNDO`, le pasa las letras y las teclas a la pantalla (cada ventana tiene un solo callback de teclado, y el de `Main` ya atendía ESC). El campo acepta solo las letras que tiene la fuente, hasta 32. Borrar quita la última letra (mantenida sigue borrando) y Ctrl+V pega. **ESC es *Cancelar*** (se resuelve en el mismo lugar que la pausa, así que no se cruzan) y **Enter es *Crear mundo***.
+- **De texto a semilla** (`Semilla.desdeTexto()`): vacío → al azar, un número → ese número, otro texto → `hashCode()`, como Minecraft. Se ignoran los espacios del principio y del final.
+- **Generación:** `PerlinNoise` dejó de ser estático: cada `World` tiene un `WorldGenerator` con su semilla, que tiene su propio `PerlinNoise` y `BiomeProvider`. Todos los `Math.random()` de `WorldGenerator` se cambiaron por un `Random` por chunk hecho con (semilla, chunkX, chunkZ), como Minecraft. Seno y coseno con `StrictMath`, que da lo mismo en cualquier equipo.
+- **Pausa:** debajo de los botones dice "Semilla: ...". La semilla también se imprime en la consola al crear el mundo.
+- **Se probó sin GPU**, en Linux: sin pantalla, los 81 chunks alrededor del spawn salen idénticos con la misma semilla (uno por uno o con 4 hilos en otro orden) y generar un chunk tarda lo mismo que antes. Con Xvfb y un programa con `java.awt.Robot`: dos mundos con la semilla 12345 dieron capturas idénticas píxel por píxel; uno sin semilla cambió el 96 % de la pantalla. Detalles en `ARQUITECTURA.md`, "Crear mundo y la semilla".
+- **Se encontró otra cosa:** con cualquier semilla hay un río justo en el spawn (0, 0) y el jugador aparece en el fondo, bajo 4 a 16 bloques de agua. Pasaba igual con la semilla fija. Está explicado en `ARQUITECTURA.md`, punto 6 de "Cosas a revisar"; no se arregló porque no es parte de esta fase.
 
 ## Fuera de este plan
 

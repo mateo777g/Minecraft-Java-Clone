@@ -17,8 +17,8 @@ import com.minejava.ui.Hud;
 import com.minejava.world.Chunk;
 import com.minejava.world.World;
 
-// Todo lo que pertenece a UNA partida: el mundo, el jugador y la cámara.
-// Crear mundo = new Partida(); cuando estaLista(), comenzar(window); salir = partida.cleanup(window).
+// Todo lo que pertenece a UNA partida: el mundo (con su semilla), el jugador y la cámara.
+// Crear mundo = new Partida(semilla); cuando estaLista(), comenzar(window); salir = partida.cleanup(window).
 public class Partida {
 
     private static final int RENDER_DISTANCE = 4; // 4 → 9 × 9 chunks
@@ -26,6 +26,7 @@ public class Partida {
     private static final int SPAWN_X = 0;
     private static final int SPAWN_Z = 0;
 
+    private final long semilla;
     private final PlayerController jugador;
     private final Camera camara;
     private final World mundo;
@@ -36,11 +37,18 @@ public class Partida {
 
     // Crea el mundo, que empieza a generar sus chunks en otros hilos. El jugador todavía no tiene
     // spawn: eso lo hace comenzar(), cuando el terreno ya existe.
-    public Partida() {
+    public Partida(long semilla) {
+        this.semilla = semilla;
         jugador = new PlayerController(Constants.PLAYER_START_POSITION);
         camara = new Camera();
 
-        mundo = new World(RENDER_DISTANCE);
+        System.out.println("Semilla del mundo: " + semilla);
+        mundo = new World(RENDER_DISTANCE, semilla);
+    }
+
+    // Se muestra en la pausa, para poder anotarla y crear el mismo mundo otra vez
+    public long getSemilla() {
+        return semilla;
     }
 
     // Mientras sale "Generando mundo...": sube a la GPU las mallas que ya estén terminadas,

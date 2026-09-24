@@ -21,7 +21,8 @@ Clon educativo de Minecraft desarrollado en Java usando LWJGL 3, OpenGL y JOML. 
 - Hotbar visual con selección de bloques.
 - Selección rápida de bloques con Pick Block.
 - Menú de inicio con título y botones con texto.
-- Menú de pausa (ESC) con el mundo desenfocado detrás; se puede volver al juego o salir al menú y entrar a otro mundo.
+- Pantalla *Crear mundo* con semilla: la misma semilla da siempre el mismo mundo (terreno, cuevas, árboles y minerales); vacía, una al azar.
+- Menú de pausa (ESC) con el mundo desenfocado detrás y la semilla del mundo; se puede volver al juego o salir al menú y entrar a otro mundo.
 - Fuente de píxeles propia con tildes, ñ, ¿ y ¡.
 - Textura atlas incluida en el proyecto.
 - Shaders GLSL para vértices y fragmentos.
@@ -59,7 +60,7 @@ Los IDs de todos los bloques están en `world/Block.java` (en el mismo orden que
 | Copiar el bloque apuntado | Clic central |
 | Pausa / volver al juego | `Esc` |
 
-El juego empieza en el menú de inicio con el cursor libre; al darle a *Un jugador* sale "Generando mundo..." mientras se genera el terreno donde apareces, y al entrar el cursor se captura. `Esc` abre la pausa, con el cursor libre y los botones *Volver al juego* y *Salir al menú*; otro `Esc` vuelve al juego.
+El juego empieza en el menú de inicio con el cursor libre. *Un jugador* abre *Crear mundo*, donde se puede escribir una semilla: un número se usa tal cual, un texto se convierte en número (como en Minecraft) y si se deja vacía sale una al azar. *Crear mundo* (o `Enter`) muestra "Generando mundo..." mientras se genera el terreno donde apareces, y al entrar el cursor se captura; *Cancelar* (o `Esc`) vuelve al menú. En el juego, `Esc` abre la pausa, con el cursor libre, los botones *Volver al juego* y *Salir al menú* y la semilla del mundo para anotarla; otro `Esc` vuelve al juego.
 
 ## Requisitos
 
@@ -92,8 +93,8 @@ Después, ejecuta la clase `com.minejava.Main.Launcher` desde tu IDE como una ap
 ```text
 src/main/java/com/minejava/
 ├── Main.java                     # Inicialización y ciclo principal del juego
-├── EstadoJuego.java              # Pantalla actual: menú, generando mundo, jugando o pausa
-├── Partida.java                  # Mundo, jugador y cámara de una partida
+├── EstadoJuego.java              # Pantalla actual: menú, crear mundo, generando mundo, jugando o pausa
+├── Partida.java                  # Semilla, mundo, jugador y cámara de una partida
 ├── render/
 │   ├── ChunkMeshBuilder.java     # Construcción de geometría voxel
 │   ├── ShaderProgram.java        # Carga y gestión de shaders
@@ -105,19 +106,22 @@ src/main/java/com/minejava/
 │   └── gen/
 │       ├── Biome.java            # Definición de biomas
 │       ├── BiomeProvider.java    # Selección de biomas
-│       ├── PerlinNoise.java      # Ruido para la generación del mundo
-│       └── WorldGenerator.java   # Generación procedural del terreno
+│       ├── PerlinNoise.java      # Ruido para la generación del mundo (uno por semilla)
+│       ├── Semilla.java          # Convierte el texto del campo Semilla en la semilla
+│       └── WorldGenerator.java   # Generación procedural del terreno a partir de la semilla
 ├── player/
 │   ├── Camera.java               # Cámara en primera persona
 │   ├── Input.java                # Teclado y ratón
 │   └── PlayerController.java     # Movimiento y colisiones
 ├── ui/
 │   ├── Boton.java                # Botón del menú (se ilumina con el ratón encima)
+│   ├── CampoTexto.java           # Campo de texto (el de la semilla)
 │   ├── FondoDesenfocado.java     # Fondo de la pausa: el mundo desenfocado
 │   ├── FondoTierra.java          # Fondo de tierra oscurecida de los menús
 │   ├── Hud.java                  # Hotbar y mira
-│   ├── MenuPausa.java            # Pausa: Volver al juego y Salir al menú
+│   ├── MenuPausa.java            # Pausa: Volver al juego, Salir al menú y la semilla
 │   ├── MenuPrincipal.java        # Menú de inicio: fondo, título y botones Un jugador y Salir
+│   ├── PantallaCrearMundo.java   # Crear mundo: campo Semilla y botones Crear mundo y Cancelar
 │   ├── PantallaGenerando.java    # Pantalla de "Generando mundo..."
 │   └── Texto.java                # Dibuja texto con la fuente de píxeles
 └── config/
@@ -134,19 +138,19 @@ docs/                        # Documentación del proyecto (ver abajo)
 ## Documentación
 
 - [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md): cómo está organizado el código y cómo funciona cada parte (arranque, ciclo del juego, chunks, generación del terreno, bloques, render y controles), dónde cambiar cada cosa y una lista de cosas a revisar.
-- [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md): plan del siguiente paso, el menú de inicio.
+- [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md): el plan por fases del menú de inicio y cómo quedó cada fase.
 - [`docs/PLAN_REESTRUCTURACION.txt`](docs/PLAN_REESTRUCTURACION.txt): la reorganización de carpetas que ya se aplicó y qué cambió.
 - [`CLAUDE.md`](CLAUDE.md): cómo trabaja Claude en el proyecto (una fase por conversación y `/clear` entre fases).
 
-## Próximo paso: menú de inicio
+## Menú de inicio
 
-El juego ya arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* crea el mundo, muestra "Generando mundo..." hasta que el terreno donde apareces está listo y empieza la partida en la misma ventana. Con `Esc` se pausa y se puede salir al menú para entrar a un mundo nuevo. Lo que sigue (opcional) es crear mundos con semilla. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
+El juego arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* abre *Crear mundo*, donde se elige la semilla; después sale "Generando mundo..." hasta que el terreno donde apareces está listo y empieza la partida en la misma ventana. Con `Esc` se pausa y se puede salir al menú para entrar a un mundo nuevo. Las seis fases del plan están hechas; el plan está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
 
 ## Limitaciones actuales
 
-- Todos los mundos tienen la misma forma del terreno (semilla fija).
+- Con cualquier semilla, el jugador aparece en el fondo de un río (ver "Cosas a revisar" en `docs/ARQUITECTURA.md`).
 - La ventana tiene tamaño fijo (1280 × 720).
-- No hay guardado ni carga de mundos.
+- No hay guardado ni carga de mundos: los bloques que rompes o pones se pierden al alejarte y volver.
 - No hay enemigos, animales ni entidades dinámicas.
 - No hay sistema de inventario completo.
 - No hay multijugador.

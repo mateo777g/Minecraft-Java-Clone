@@ -15,17 +15,21 @@ import java.util.concurrent.Executors;
 
 import com.minejava.player.Camera;
 import com.minejava.player.PlayerController;
+import com.minejava.world.gen.WorldGenerator;
 
 public class World {
     private int renderDistance;
     private Map<Long, Chunk> chunksActivos;
     private ExecutorService chunkGenerators;
     private ConcurrentLinkedQueue<Chunk> chunksListosParaGL;
+    // Genera los chunks de este mundo con su semilla. Se crea antes de mandar tareas al pool.
+    private final WorldGenerator generador;
     // Se pone en true en cleanup(). Lo leen los hilos secundarios, por eso es volatile.
     private volatile boolean cerrado = false;
 
-    public World(int renderDistance) {
+    public World(int renderDistance, long semilla) {
         this.renderDistance = renderDistance;
+        this.generador = new WorldGenerator(semilla);
         this.chunksActivos = new ConcurrentHashMap<>();
         this.chunksListosParaGL = new ConcurrentLinkedQueue<>();
         
@@ -38,6 +42,10 @@ public class World {
         });
         
         actualizarMundo(0, 0); 
+    }
+
+    public WorldGenerator getGenerador() {
+        return generador;
     }
 
     private long generarClave(int cx, int cz) {

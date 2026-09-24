@@ -13,6 +13,7 @@ import com.minejava.render.Texture;
 import com.minejava.ui.Hud;
 import com.minejava.ui.MenuPausa;
 import com.minejava.ui.MenuPrincipal;
+import com.minejava.ui.PantallaCrearMundo;
 import com.minejava.ui.PantallaGenerando;
 import com.minejava.ui.Texto;
 
@@ -27,6 +28,7 @@ public class Main {
     private Matrix4f projectionMatrix;
     private EstadoJuego estado;
     private MenuPrincipal menu;
+    private PantallaCrearMundo crearMundo;
     private MenuPausa menuPausa;
     private Partida partida;
     // Lo pone el callback del teclado cuando se aprieta ESC; el ciclo lo lee una vez por frame
@@ -64,8 +66,17 @@ public class Main {
         // ESC abre y cierra la pausa. El callback avisa una sola vez por cada vez que se aprieta: si se
         // mantiene apretada llega como GLFW_REPEAT y no cuenta, así la pausa no se abre y cierra sola.
         // Tampoco se pierde un toque muy rápido, que leyendo glfwGetKey cada frame sí se podría perder.
+        // En "Crear mundo", ESC es Cancelar (lo resuelve loop()) y las demás teclas van al campo de la semilla.
         GLFW.glfwSetKeyCallback(window, (ventana, tecla, scancode, accion, mods) -> {
-            if (tecla == GLFW.GLFW_KEY_ESCAPE && accion == GLFW.GLFW_PRESS) escApretado = true;
+            if (tecla == GLFW.GLFW_KEY_ESCAPE) {
+                if (accion == GLFW.GLFW_PRESS) escApretado = true;
+            } else if (estado == EstadoJuego.CREAR_MUNDO) {
+                crearMundo.tecla(ventana, tecla, accion, mods);
+            }
+        });
+        // Las letras que se escriben, ya con mayúsculas, tildes y ñ según el teclado: solo las usa el campo de la semilla
+        GLFW.glfwSetCharCallback(window, (ventana, codigo) -> {
+            if (estado == EstadoJuego.CREAR_MUNDO) crearMundo.escribir(codigo);
         });
 
         GL.createCapabilities();
@@ -81,6 +92,7 @@ public class Main {
             blockTexture = new Texture("/textures/terrain_atlas.png");
             fuente = new Texto();
             menu = new MenuPrincipal();
+            crearMundo = new PantallaCrearMundo(fuente);
             menuPausa = new MenuPausa();
         } catch (Exception e) {
             e.printStackTrace();
@@ -93,10 +105,16 @@ public class Main {
         estado = EstadoJuego.MENU_PRINCIPAL;
     }
 
-    // Botón "Un jugador": crea el mundo, que se empieza a generar en otros hilos,
+    // Botón "Un jugador": la pantalla para elegir la semilla, con el campo vacío
+    private void abrirCrearMundo() {
+        crearMundo.abrir();
+        estado = EstadoJuego.CREAR_MUNDO;
+    }
+
+    // Botón "Crear mundo": crea el mundo con esa semilla, que se empieza a generar en otros hilos,
     // y muestra "Generando mundo..." mientras tanto
-    private void iniciarPartida() {
-        partida = new Partida();
+    private void iniciarPartida(long semilla) {
+        partida = new Partida(semilla);
         estado = EstadoJuego.GENERANDO_MUNDO;
     }
 
@@ -122,7 +140,7 @@ public class Main {
         GLFW.glfwSetInputMode(window, GLFW.GLFW_STICKY_MOUSE_BUTTONS, GLFW.GLFW_TRUE);
 
         partida.render(shader, blockTexture, projectionMatrix);
-        menuPausa.abrir();
+        menuPausa.abrir(partida.getSemilla());
         estado = EstadoJuego.PAUSA;
     }
 
@@ -151,19 +169,26 @@ public class Main {
         while (!GLFW.glfwWindowShouldClose(window)) {
             GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
 
-            // Se revisa antes del switch para que la pausa (o la partida) ya se dibuje en este frame.
-            // En el menú y en "Generando mundo..." ESC no hace nada.
+            // Se revisa antes del switch para que la pantalla nueva ya se dibuje en este frame.
+            // En "Crear mundo" ESC es Cancelar. En el menú y en "Generando mundo..." no hace nada.
             boolean esc = escApretado;
             escApretado = false;
             if (esc && estado == EstadoJuego.JUGANDO) pausar();
             else if (esc && estado == EstadoJuego.PAUSA) reanudar();
+            else if (esc && estado == EstadoJuego.CREAR_MUNDO) estado = EstadoJuego.MENU_PRINCIPAL;
 
             switch (estado) {
                 case MENU_PRINCIPAL -> {
                     menu.update(window);
                     menu.render(blockTexture, fuente);
-                    if (menu.clicEnJugar()) iniciarPartida();
+                    if (menu.clicEnJugar()) abrirCrearMundo();
                     else if (menu.clicEnSalir()) GLFW.glfwSetWindowShouldClose(window, true);
+                }
+                case CREAR_MUNDO -> {
+                    crearMundo.update(window);
+                    crearMundo.render(blockTexture);
+                    if (crearMundo.clicEnCrear()) iniciarPartida(crearMundo.getSemilla());
+                    else if (crearMundo.clicEnCancelar()) estado = EstadoJuego.MENU_PRINCIPAL;
                 }
                 case GENERANDO_MUNDO -> {
                     partida.updateGenerando();
@@ -196,7 +221,7 @@ public class Main {
         menu.cleanup();
         menuPausa.cleanup();
         Hud.cleanup();
-        Callbacks.glfwFreeCallbacks(window); // El de ESC (los de Input ya los liberó partida.cleanup())
+        Callbacks.glfwFreeCallbacks(window); // El del teclado y el de las letras (los de Input ya los liberó partida.cleanup())
         GLFW.glfwDestroyWindow(window);
         GLFW.glfwTerminate();
         GLFW.glfwSetErrorCallback(null).free();

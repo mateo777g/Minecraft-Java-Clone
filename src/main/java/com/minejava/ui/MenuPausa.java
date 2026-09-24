@@ -6,7 +6,8 @@ import org.lwjgl.opengl.GL11;
 import com.minejava.config.Constants;
 
 // Pantalla de pausa, como la de Minecraft: el mundo quieto y desenfocado con una capa oscura encima,
-// el título "Juego en pausa" y los botones Volver al juego y Salir al menú, centrados.
+// el título "Juego en pausa", los botones Volver al juego y Salir al menú y, debajo, la semilla del mundo
+// para poder anotarla. Todo centrado.
 // Lee el ratón cada frame igual que MenuPrincipal; los callbacks de Input están apagados en la pausa.
 public class MenuPausa {
 
@@ -16,10 +17,13 @@ public class MenuPausa {
     private static final float ALTO_BOTON = 40f;
     private static final float SEPARACION = 16f;
     private static final float ESPACIO_TITULO = 48f; // Del centro del título al primer botón
+    private static final float ESPACIO_SEMILLA = 36f; // Del último botón al centro de "Semilla: ..."
+    private static final float GRIS_SEMILLA = 0.75f;
     private static final float OSCURIDAD = 0.5f;     // Opacidad de la capa negra encima del mundo
 
     private final FondoDesenfocado fondo = new FondoDesenfocado();
     private final float yTitulo;
+    private final float ySemilla;
     private final Boton volver;
     private final Boton salir;
 
@@ -30,22 +34,25 @@ public class MenuPausa {
     private Boton botonApretado;
     private boolean clicEnVolver;
     private boolean clicEnSalir;
+    private String textoSemilla = "";
 
     public MenuPausa() {
-        // El título y los dos botones se centran juntos en la pantalla
-        float alto = ESPACIO_TITULO + ALTO_BOTON + SEPARACION + ALTO_BOTON;
+        // El título, los dos botones y la semilla se centran juntos en la pantalla
+        float alto = ESPACIO_TITULO + ALTO_BOTON + SEPARACION + ALTO_BOTON + ESPACIO_SEMILLA;
         yTitulo = (Constants.SCREEN_HEIGHT - alto) / 2f;
 
         float x = (Constants.SCREEN_WIDTH - ANCHO_BOTON) / 2f;
         float y = yTitulo + ESPACIO_TITULO;
         volver = new Boton("Volver al juego", x, y, ANCHO_BOTON, ALTO_BOTON);
         salir = new Boton("Salir al menú", x, y + ALTO_BOTON + SEPARACION, ANCHO_BOTON, ALTO_BOTON);
+        ySemilla = y + ALTO_BOTON + SEPARACION + ALTO_BOTON + ESPACIO_SEMILLA;
     }
 
     // Se llama al entrar a la pausa, justo después de dibujar el mundo y antes de glfwSwapBuffers:
-    // copia lo que se ve y lo desenfoca una sola vez.
-    public void abrir() {
+    // copia lo que se ve y lo desenfoca una sola vez. La semilla es la del mundo de la partida.
+    public void abrir(long semilla) {
         fondo.capturar();
+        textoSemilla = "Semilla: " + semilla;
 
         // Si el botón del ratón venía apretado desde la partida, soltarlo no cuenta como clic
         apretadoAntes = true;
@@ -104,6 +111,8 @@ public class MenuPausa {
         fuente.dibujarCentrado(TITULO, Constants.SCREEN_WIDTH / 2f, yTitulo, ESCALA_TITULO, 1f, 1f, 1f);
         volver.render(fuente);
         salir.render(fuente);
+        fuente.dibujarCentrado(textoSemilla, Constants.SCREEN_WIDTH / 2f, ySemilla, ESCALA_TITULO,
+                GRIS_SEMILLA, GRIS_SEMILLA, GRIS_SEMILLA);
 
         GL11.glColor4f(1f, 1f, 1f, 1f);
         GL11.glMatrixMode(GL11.GL_PROJECTION);

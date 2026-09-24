@@ -85,7 +85,11 @@ public class Texto {
 
     // Centrado en (cx, cy): en horizontal el texto entero y en vertical la altura de las mayúsculas
     public void dibujarCentrado(String texto, float cx, float cy, int escala, float r, float g, float b) {
-        float x = cx - ancho(texto, escala) / 2f;
+        dibujarCentradoVertical(texto, cx - ancho(texto, escala) / 2f, cy, escala, r, g, b);
+    }
+
+    // Empieza en x y, como dibujarCentrado(), centra la altura de las mayúsculas en cy
+    public void dibujarCentradoVertical(String texto, float x, float cy, int escala, float r, float g, float b) {
         float y = cy - (FILA_MAYUSCULAS + ALTO_MAYUSCULAS / 2f) * escala;
         dibujar(texto, x, y, escala, r, g, b);
     }
@@ -126,9 +130,14 @@ public class Texto {
         GL11.glEnd();
     }
 
+    // Si el carácter está en la fuente. Los demás se dibujarían como '?'.
+    public boolean tieneLetra(char c) {
+        return c < anchos.length && anchos[c] > 0;
+    }
+
     // Los caracteres que no están en la fuente (casilla vacía o fuera de Latin-1) se dibujan como '?'
     private int casilla(char c) {
-        if (c < anchos.length && anchos[c] > 0) return c;
+        if (tieneLetra(c)) return c;
         return '?';
     }
 

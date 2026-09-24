@@ -9,7 +9,6 @@ import org.lwjgl.system.MemoryUtil;
 import java.nio.FloatBuffer;
 
 import com.minejava.render.ChunkMeshBuilder;
-import com.minejava.world.gen.WorldGenerator;
 
 public class Chunk {
     
@@ -53,9 +52,9 @@ public class Chunk {
     // 1. TRABAJO DE CPU (HILO SECUNDARIO) - ¡Aquí no se puede usar OpenGL!
     // ========================================================================
     public void generarTerrenoAsincrono() {
-        // Solo generamos el Perlin Noise la primera vez
+        // Solo generamos el Perlin Noise la primera vez. Con la semilla del mundo: siempre sale igual.
         if (!terrenoGenerado) {
-            WorldGenerator.generateTerrain(this.blocks, this.chunkX, this.chunkZ);
+            world.getGenerador().generateTerrain(this.blocks, this.chunkX, this.chunkZ);
             terrenoGenerado = true;
         }
 

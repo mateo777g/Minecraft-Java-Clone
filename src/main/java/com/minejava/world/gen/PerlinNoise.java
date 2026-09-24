@@ -2,12 +2,13 @@ package com.minejava.world.gen;
 
 import java.util.Random;
 
+// Ruido Perlin 2D. Cada mundo tiene el suyo: la semilla decide cómo se mezcla la tabla de permutación,
+// así la misma semilla siempre da el mismo ruido (y el mismo terreno) y otra semilla da otro.
 public class PerlinNoise {
-    private static final int[] p = new int[512];
+    private final int[] p = new int[512];
 
-    static {
-        // Inicialización determinista basada en una semilla fija (Seed: 12345)
-        Random rand = new Random(12345);
+    public PerlinNoise(long semilla) {
+        Random rand = new Random(semilla);
         for (int i = 0; i < 256; i++) {
             p[i] = i;
         }
@@ -25,7 +26,7 @@ public class PerlinNoise {
     }
 
     // El método principal que llamaremos desde el Chunk
-    public static float getNoise(float x, float z) {
+    public float getNoise(float x, float z) {
         float total = 0;
         float frequency = 0.05f; // Ajusta esto si quieres montañas más pegadas o separadas
         float amplitude = 1.0f;
@@ -42,7 +43,7 @@ public class PerlinNoise {
         return (total / maxValue + 1.0f) / 2.0f; // Normaliza el resultado entre 0.0 y 1.0
     }
 
-    private static float noise(float x, float y) {
+    private float noise(float x, float y) {
         int X = (int)Math.floor(x) & 255;
         int Y = (int)Math.floor(y) & 255;
         x -= Math.floor(x);

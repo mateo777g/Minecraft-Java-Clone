@@ -9,13 +9,13 @@ Todo el código vive en `src/main/java/com/minejava/`:
 ```text
 com/minejava/
 ├── Main.java          Punto de entrada: ventana, OpenGL y ciclo principal
-├── EstadoJuego.java   Qué pantalla se dibuja: menú, "Generando mundo...", partida o pausa
-├── Partida.java       Mundo, jugador y cámara de una partida
+├── EstadoJuego.java   Qué pantalla se dibuja: menú, "Crear mundo", "Generando mundo...", partida o pausa
+├── Partida.java       Semilla, mundo, jugador y cámara de una partida
 ├── render/            Todo lo que habla con la GPU
 ├── world/             Datos del mundo: chunks, bloques, interacción
 │   └── gen/           Generación procedural del terreno
 ├── player/            Jugador, cámara y entrada (teclado y ratón)
-├── ui/                Interfaz 2D (menú de inicio, pantalla de carga, pausa, texto, hotbar y mira)
+├── ui/                Interfaz 2D (menú de inicio, crear mundo, pantalla de carga, pausa, texto, hotbar y mira)
 └── config/            Constantes de configuración
 ```
 
@@ -23,30 +23,33 @@ Fuera del código del juego está `herramientas/`, con dos programas que generan
 
 | Paquete | Clase | Qué hace |
 | --- | --- | --- |
-| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders, textura y fuente, guarda el estado actual y corre el ciclo del juego. Crea la `Partida` cuando se aprieta *Un jugador* y la empieza cuando el chunk del spawn está listo. Con ESC pausa y reanuda; *Salir al menú* libera la partida. `Main.Launcher` tiene el `main()`. |
-| `com.minejava` | `EstadoJuego` | `MENU_PRINCIPAL`, `GENERANDO_MUNDO`, `JUGANDO` o `PAUSA`: le dice al ciclo qué dibujar en cada frame. |
-| `com.minejava` | `Partida` | Lo que pertenece a un mundo: el `World`, el `PlayerController` y la `Camera`. Avisa cuándo el chunk del spawn está listo (`estaLista()`); entonces calcula el spawn y activa `Input` (`comenzar()`). En cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. `pausar()` y `reanudar()` apagan y prenden `Input`; `cleanup()` apaga `Input` y libera el mundo. |
+| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders, textura y fuente, guarda el estado actual y corre el ciclo del juego. *Un jugador* abre *Crear mundo*; *Crear mundo* crea la `Partida` con la semilla y la empieza cuando el chunk del spawn está listo. Con ESC pausa y reanuda (en *Crear mundo*, ESC es Cancelar); *Salir al menú* libera la partida. Sus callbacks del teclado y de las letras le pasan a *Crear mundo* lo que se escribe. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `EstadoJuego` | `MENU_PRINCIPAL`, `CREAR_MUNDO`, `GENERANDO_MUNDO`, `JUGANDO` o `PAUSA`: le dice al ciclo qué dibujar en cada frame. |
+| `com.minejava` | `Partida` | Lo que pertenece a un mundo: su semilla, el `World`, el `PlayerController` y la `Camera`. Avisa cuándo el chunk del spawn está listo (`estaLista()`); entonces calcula el spawn y activa `Input` (`comenzar()`). En cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. `pausar()` y `reanudar()` apagan y prenden `Input`; `cleanup()` apaga `Input` y libera el mundo. |
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
 | `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). Guarda su tamaño (`getAncho()`, `getAlto()`). |
 | `render` | `ChunkMeshBuilder` | Convierte los bloques de un chunk en una lista de vértices, dibujando solo las caras visibles. |
-| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. `estaCerrado()` avisa a los hilos que el mundo ya se liberó. |
+| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. `estaCerrado()` avisa a los hilos que el mundo ya se liberó. Tiene el `WorldGenerator` de su semilla. |
 | `world` | `Chunk` | Un pedazo de 48 × 200 × 48 bloques con sus mallas (opaca y transparente) en la GPU. |
 | `world` | `Block` | Los IDs de todos los bloques y `isSolid()`. |
-| `world.gen` | `WorldGenerator` | Llena un chunk: terreno, cuevas, ríos, minerales, árboles, cactus y nubes. |
+| `world.gen` | `WorldGenerator` | Llena un chunk: terreno, cuevas, ríos, minerales, árboles, cactus y nubes. Hay uno por mundo, hecho con su semilla; lo que es al azar sale de un `Random` propio de cada chunk (ver "Crear mundo y la semilla"). |
 | `world.gen` | `Biome` | Los biomas (llanura, desierto, océano) con su bloque de superficie y relleno. |
-| `world.gen` | `BiomeProvider` | Elige el bioma de cada columna con ruido Perlin. |
-| `world.gen` | `PerlinNoise` | Ruido Perlin 2D de 3 octavas con semilla fija (12345). |
+| `world.gen` | `BiomeProvider` | Elige el bioma de cada columna con el ruido Perlin del mundo. |
+| `world.gen` | `PerlinNoise` | Ruido Perlin 2D de 3 octavas. Cada mundo tiene el suyo: su tabla se mezcla con la semilla. |
+| `world.gen` | `Semilla` | Convierte lo que se escribe en el campo *Semilla* en la semilla del mundo: vacío → una al azar, un número → ese número, otro texto → su `hashCode()`. |
 | `player` | `PlayerController` | Movimiento del jugador y colisiones contra los bloques. |
 | `player` | `Camera` | Posición y rotación de la cámara; calcula la matriz de vista y la dirección a la que miras. |
 | `player` | `Input` | Callbacks de GLFW: ratón (mirar, romper, poner, pick block, rueda) y teclas 1–9 de la hotbar. `init()` los registra al empezar la partida y al volver de la pausa; `desactivar()` los quita y los libera al pausar y al salir, así que en el menú y en la pausa no existen. |
 | `ui` | `Hud` | Dibuja la hotbar (con los bloques en 3D) y la mira. |
 | `ui` | `MenuPrincipal` | El menú de inicio: fondo de tierra (`FondoTierra`), el título (`titulo.png`) y los botones *Un jugador* y *Salir*. Lee el ratón cada frame y avisa cuándo se hizo clic en cada botón. |
+| `ui` | `PantallaCrearMundo` | La pantalla *Crear mundo*: el fondo de tierra, el título, el campo *Semilla* con una ayuda debajo y los botones *Crear mundo* y *Cancelar*. Lee el ratón cada frame como `MenuPausa`; el teclado se lo pasa `Main`. |
+| `ui` | `CampoTexto` | Un campo de texto de una línea como los de Minecraft: fondo negro, borde blanco y un `_` que parpadea. Se escribe y se borra al final, y se puede pegar con Ctrl+V. |
 | `ui` | `PantallaGenerando` | La pantalla de "Generando mundo...": el fondo de tierra con ese texto en el centro. |
-| `ui` | `MenuPausa` | La pausa: el mundo desenfocado (`FondoDesenfocado`) con una capa oscura, el título *Juego en pausa* y los botones *Volver al juego* y *Salir al menú*. Lee el ratón cada frame como `MenuPrincipal`. |
+| `ui` | `MenuPausa` | La pausa: el mundo desenfocado (`FondoDesenfocado`) con una capa oscura, el título *Juego en pausa*, los botones *Volver al juego* y *Salir al menú* y la semilla del mundo debajo. Lee el ratón cada frame como `MenuPrincipal`. |
 | `ui` | `FondoDesenfocado` | Copia lo que se acaba de dibujar (`glReadPixels`), lo desenfoca en la CPU y lo guarda en una textura que se reutiliza en cada pausa. |
 | `ui` | `FondoTierra` | El fondo de las pantallas de menú: la casilla de tierra del atlas repetida por toda la pantalla y oscurecida. |
 | `ui` | `Boton` | Un rectángulo gris con texto que sabe si el ratón está encima. Cuando lo está, se aclara, le sale un borde blanco y el texto se pone amarillo claro. |
-| `ui` | `Texto` | Dibuja texto con la fuente de píxeles `fuente.png`, con sombra como en Minecraft. Sabe medir un texto y centrarlo. |
+| `ui` | `Texto` | Dibuja texto con la fuente de píxeles `fuente.png`, con sombra como en Minecraft. Sabe medir un texto, centrarlo y decir si una letra está en la fuente. |
 | `config` | `Constants` | Tamaño y título de la ventana, sensibilidad del ratón, posición inicial y bloques de la hotbar. |
 
 Recursos en `src/main/resources/`:
@@ -68,13 +71,13 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 `init()` hace esto, en orden:
 
 1. Inicializa GLFW y crea la ventana de 1280 × 720, de tamaño fijo, con V-Sync (`glfwSwapInterval(1)`).
-2. Deja el cursor visible y activa los botones "pegajosos" del ratón (`GLFW_STICKY_MOUSE_BUTTONS`), para que un clic muy rápido no se pierda entre dos frames del menú. Registra el callback del teclado que avisa cuando se aprieta ESC.
+2. Deja el cursor visible y activa los botones "pegajosos" del ratón (`GLFW_STICKY_MOUSE_BUTTONS`), para que un clic muy rápido no se pierda entre dos frames del menú. Registra el callback del teclado, que avisa cuando se aprieta ESC y le pasa las demás teclas a *Crear mundo*, y el de las letras (`glfwSetCharCallback`), que solo usa el campo de la semilla.
 3. Crea el contexto de OpenGL y pone el color del cielo (`glClearColor`).
-4. Compila los shaders, carga `terrain_atlas.png` y la fuente (`new Texto()`) y crea el `MenuPrincipal`, que carga `titulo.png`, y el `MenuPausa`, que crea la textura del fondo desenfocado.
+4. Compila los shaders, carga `terrain_atlas.png` y la fuente (`new Texto()`) y crea el `MenuPrincipal`, que carga `titulo.png`, la `PantallaCrearMundo` y el `MenuPausa`, que crea la textura del fondo desenfocado.
 5. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
 6. Arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
 
-Al hacer clic en *Un jugador*, `iniciarPartida()` hace `new Partida()` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0), empezando por los más cercanos.
+Al hacer clic en *Un jugador* se abre *Crear mundo* (ver "Crear mundo y la semilla"). Con *Crear mundo* (o Enter), `iniciarPartida(semilla)` hace `new Partida(semilla)` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` imprime la semilla en la consola y crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks y esa semilla. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0), empezando por los más cercanos.
 
 Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuando el chunk del spawn, el que contiene la columna (0, 0), ya tiene su terreno y su malla en la GPU (`partida.estaLista()`), `empezarAJugar()`:
 
@@ -84,21 +87,29 @@ Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuan
 
 Hay que esperar porque, hasta que su terreno se genera, el chunk está lleno de ceros (piedra): la "superficie" saldría en y = 200 y el jugador aparecería encima de las nubes. Esperar también a la malla hace que al entrar ya se vea el suelo.
 
-Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` si hay una partida (apaga `Input` y libera el mundo) y después libera el shader, las texturas (atlas, fuente, título y fondo de la pausa), el VAO del HUD, el callback de ESC y la ventana.
+Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` si hay una partida (apaga `Input` y libera el mundo) y después libera el shader, las texturas (atlas, fuente, título y fondo de la pausa), el VAO del HUD, los callbacks del teclado y de las letras y la ventana.
 
 ## El ciclo de cada frame
 
 `Main.loop()` repite esto hasta que se cierra la ventana. Lo que hace en cada frame depende del estado.
 
-Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `JUGANDO` llama a `pausar()` y en `PAUSA` a `reanudar()` (ver "Pausa y volver al menú"). Así la pausa ya se dibuja en ese mismo frame. En los demás estados ESC no hace nada.
+Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `JUGANDO` llama a `pausar()`, en `PAUSA` a `reanudar()` (ver "Pausa y volver al menú") y en `CREAR_MUNDO` vuelve al menú, como *Cancelar*. Así la pantalla nueva ya se dibuja en ese mismo frame. En el menú y en "Generando mundo..." ESC no hace nada.
 
 **`MENU_PRINCIPAL`:**
 
 1. Limpia la pantalla.
 2. `menu.update()`: lee la posición del ratón (`glfwGetCursorPos`) para iluminar el botón que está debajo, y el botón izquierdo (`glfwGetMouseButton`). El clic cuenta al **soltar** el botón, así mantenerlo apretado no cuenta como varios clics.
 3. `menu.render()`: dibuja el fondo (la casilla de tierra del atlas repetida en baldosas de 64 px y oscurecida), el título y los dos botones con su texto, con `glOrtho` y `glBegin`/`glEnd` como el HUD.
-4. Si se hizo clic en *Un jugador* llama a `iniciarPartida()`; si fue en *Salir*, marca la ventana para cerrarse.
+4. Si se hizo clic en *Un jugador* abre *Crear mundo* (`abrirCrearMundo()`); si fue en *Salir*, marca la ventana para cerrarse.
 5. Intercambia buffers y procesa eventos.
+
+**`CREAR_MUNDO`:**
+
+1. Limpia la pantalla.
+2. `crearMundo.update()`: hover y clics como en la pausa (el clic cuenta si se aprieta y se suelta sobre el mismo botón). Un Enter que llegó por el callback del teclado cuenta como clic en *Crear mundo*.
+3. `crearMundo.render()`: el fondo de tierra, el título, *Semilla*, el campo con lo escrito, la ayuda y los dos botones.
+4. Si se hizo clic en *Crear mundo* llama a `iniciarPartida()` con la semilla del campo; si fue en *Cancelar*, vuelve a `MENU_PRINCIPAL`.
+5. Intercambia buffers y procesa eventos. Lo que se escribe llega por los callbacks durante `glfwPollEvents`.
 
 **`GENERANDO_MUNDO`:**
 
@@ -124,7 +135,7 @@ Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `J
 
 1. Limpia la pantalla.
 2. `menuPausa.update()`: igual que el menú principal, hover y clics leyendo el ratón.
-3. `menuPausa.render()`: la imagen desenfocada que se guardó al pausar, una capa negra al 50 %, el título y los dos botones.
+3. `menuPausa.render()`: la imagen desenfocada que se guardó al pausar, una capa negra al 50 %, el título, los dos botones y "Semilla: ..." debajo.
 4. Si se hizo clic en *Volver al juego* llama a `reanudar()`; si fue en *Salir al menú*, a `salirAlMenu()`.
 5. Intercambia buffers y procesa eventos.
 
@@ -134,7 +145,7 @@ Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `J
 - **`pausar()`:**
   1. `partida.pausar()` quita los callbacks de `Input` (`Input.desactivar()`): mover el ratón no gira la cámara y los clics y la rueda no rompen, ponen ni cambian la hotbar. Las teclas 1–9 y WASD se leen en `partida.update()`, que en la pausa no se llama.
   2. Libera el cursor (`GLFW_CURSOR_NORMAL`), lo pone en el centro de la ventana, como Minecraft, y vuelve a activar los botones pegajosos para el menú. Esto va antes del paso 3, así si el ratón se mueve mientras se copia la pantalla no vuelve al centro.
-  3. Dibuja el mundo y el HUD una vez más, sin moverlos, y `menuPausa.abrir()` los copia y los desenfoca (`FondoDesenfocado.capturar()`). El HUD queda adentro de esa imagen, detrás del desenfoque.
+  3. Dibuja el mundo y el HUD una vez más, sin moverlos, y `menuPausa.abrir(semilla)` los copia y los desenfoca (`FondoDesenfocado.capturar()`) y guarda el texto "Semilla: ..." de la partida. El HUD queda adentro de esa imagen, detrás del desenfoque.
 - **`reanudar()`** (ESC o *Volver al juego*): captura el cursor, apaga los botones pegajosos y llama a `partida.reanudar()`, que vuelve a llamar a `Input.init()`. Este pone `firstMouse = true`, así la cámara no salta aunque el ratón se haya movido durante la pausa.
 - **`salirAlMenu()`:** `partida.cleanup()` quita los callbacks de `Input` y llama a `World.cleanup()`, que libera los chunks de la GPU y apaga los hilos. Después `partida = null` y vuelve a `MENU_PRINCIPAL`. El cursor ya está libre desde la pausa.
 - **Callbacks de `Input`.** Cada `glfwSet...Callback` devuelve el callback anterior, que hay que liberar con `.free()`. Si no, sigue guardando la cámara y el mundo, y el mundo de cada partida quedaría en memoria para siempre. `Input.desactivar()` los pone en `null` y libera los anteriores; `Input.init()` también libera los que hubiera antes de poner los nuevos.
@@ -150,6 +161,42 @@ Como el mundo no se mueve en la pausa, el desenfoque se calcula una sola vez, al
 4. Se sube a una textura con filtro lineal (no `GL_NEAREST` como los bloques) y `GL_CLAMP_TO_EDGE`. Al estirarla a toda la pantalla queda suave.
 
 Hay **una sola textura** para todas las pausas: se crea con el `MenuPausa` y cada `capturar()` reemplaza su imagen, así no se acumulan. Se hace en la CPU y no con un shader porque es una vez por pausa: con el código ya optimizado por Java tarda unos 10 ms; la primera pausa de cada sesión, un poco más.
+
+## Crear mundo y la semilla
+
+### La pantalla (`PantallaCrearMundo` y `CampoTexto`)
+
+- Se abre con *Un jugador*. Tiene el fondo de tierra del menú, el título *Crear mundo*, la etiqueta *Semilla* en gris, el campo de texto, la ayuda "Déjala vacía para una semilla al azar" y, abajo, *Crear mundo* y *Cancelar* uno al lado del otro, como en Minecraft. Todo se centra junto en la pantalla.
+- Cada vez que se abre, el campo empieza vacío.
+- **Teclado.** Cada ventana tiene un solo callback de teclado y es el de `Main` (el de ESC), así que `Main` le pasa a la pantalla las demás teclas (`tecla()`) y las letras de `glfwSetCharCallback` (`escribir()`), pero solo mientras el estado es `CREAR_MUNDO`. `glfwSetCharCallback` da la letra ya lista (mayúsculas, tildes y ñ según el teclado del sistema), algo que no se puede sacar de las teclas sueltas.
+- **El campo** acepta solo las letras que están en la fuente (`Texto.tieneLetra()`): lo que se ve es exactamente lo que se usa para la semilla. Hasta 32 letras, como en Minecraft. Borrar quita la última (manteniéndola apretada sigue borrando, porque también cuenta `GLFW_REPEAT`) y Ctrl+V pega el portapapeles, saltándose los saltos de línea y las letras que no están en la fuente. Si el texto no entra, se ve el final. El `_` parpadea cada 0,3 s y se ve siempre justo después de escribir o borrar.
+- **ESC** es *Cancelar* (lo resuelve `Main.loop()`, igual que la pausa) y **Enter** es *Crear mundo*.
+
+### De texto a semilla (`Semilla.desdeTexto()`)
+
+Como Minecraft, sin contar los espacios del principio y del final:
+
+- Vacío → una semilla al azar (`new Random().nextLong()`).
+- Un número entero, también negativo → ese mismo número. `0` también vale.
+- Cualquier otro texto → su `hashCode()`. Por ejemplo, "hola" siempre da 3208380. Un número que no cabe en un `long` (más de 19 cifras) cuenta como texto.
+
+La semilla se ve en la pausa ("Semilla: 12345") y se imprime en la consola al crear el mundo.
+
+### Cómo la semilla hace el mundo
+
+- **Forma del terreno y biomas.** Cada `World` crea un `WorldGenerator` con su semilla, y este un `PerlinNoise` propio: la semilla decide cómo se mezcla su tabla de permutación. `BiomeProvider` usa ese mismo ruido.
+- **Cuevas, minerales, árboles, cactus y la roca madre.** Antes usaban `Math.random()`, que cambia cada vez. Ahora cada chunk usa su propio `Random`, creado con la semilla y la posición del chunk, igual que Minecraft: `new Random((chunkX * a + chunkZ * b) ^ semilla)`, donde `a` y `b` son dos números impares que salen de `new Random(semilla)`. Así chunks vecinos no quedan con semillas parecidas.
+- Por eso **la misma semilla da el mismo mundo** y **un chunk sale igual si se descarga y se vuelve a cargar**: lo que sale depende solo de la semilla y de la posición del chunk, no de en qué orden ni en qué hilo se genera. Los bloques que rompiste o pusiste sí se pierden al descargar el chunk, porque todavía no hay guardado.
+- El seno y el coseno de las cuevas y las nubes usan `StrictMath`, que da exactamente el mismo resultado en cualquier equipo (con `Math` podría cambiar el último bit, y eso basta para mover una nube).
+- Con la semilla 12345 la forma del terreno es la misma que la de antes, cuando estaba fija; las cuevas, los árboles y los minerales no, porque antes salían al azar.
+- `WorldGenerator` lo usan varios hilos a la vez: no guarda nada que cambie al generar.
+
+**Probado sin pantalla:**
+
+- Con la misma semilla, los 81 chunks alrededor de (0, 0) salen idénticos generándolos uno por uno o con 4 hilos en otro orden, y un chunk generado otra vez sale idéntico.
+- Con semillas distintas, el chunk (0, 0) cambia entre el 14 y el 22 % de sus bloques.
+- Generar un chunk tarda lo mismo que antes, unos 15 ms.
+- En Linux con una pantalla virtual (Xvfb) y OpenGL por software: dos mundos con la semilla 12345, esperando a que carguen todos los chunks, dieron capturas idénticas píxel por píxel; uno sin semilla cambió el 96 % de la pantalla. *Cancelar*, ESC (también mantenida) y Enter funcionan, el campo empieza vacío cada vez, pegar filtra las letras que no están en la fuente y corta en 32, y la pausa muestra la semilla (12345, 3208380 para "hola", −5).
 
 ## El mundo: chunks y generación
 
@@ -201,7 +248,7 @@ Cuando rompes o pones un bloque, `setBlockGlobal()` cambia el ID y vuelve a mand
 
 Los biomas los decide `BiomeProvider` con ruido a gran escala: océano si el valor es menor a 0.45, desierto si es mayor a 0.65 y llanura en el resto.
 
-La **forma** del terreno siempre sale igual, porque `PerlinNoise` usa la semilla fija 12345. Las cuevas, minerales, árboles y cactus usan `Math.random()`, así que cambian cada vez que se genera un chunk (también al volver a una zona que se descargó).
+Todo sale de la semilla del mundo: la forma del terreno y los biomas del ruido Perlin, y las cuevas, minerales, árboles, cactus y la roca madre del `Random` de cada chunk. La misma semilla siempre da el mismo mundo (ver "Crear mundo y la semilla").
 
 ## Bloques
 
@@ -303,7 +350,9 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 | Distancia de render (en chunks) | `Partida.RENDER_DISTANCE` (4 → 9 × 9 chunks) |
 | Tamaño y altura del chunk | `Chunk.CHUNK_SIZE` (48) y `Chunk.CHUNK_HEIGHT` (200) |
 | Nivel del agua | `WorldGenerator.generateTerrain()`, `nivelAgua = 68` |
-| Semilla del terreno | `PerlinNoise`, `new Random(12345)` |
+| Cómo se convierte el texto en semilla | `Semilla.desdeTexto()` |
+| Pantalla *Crear mundo* (textos, tamaños, distancias y largo máximo de la semilla) | `PantallaCrearMundo`: `TITULO`, `ETIQUETA`, `AYUDA`, `MAX_LETRAS`, `ANCHO` y las distancias de arriba abajo |
+| Aspecto del campo de texto (borde, margen, parpadeo del `_`) | `CampoTexto`: `BORDE`, `MARGEN`, `COLOR_TEXTO` y `PARPADEO` |
 | Frecuencia de biomas | `BiomeProvider.BIOME_SCALE` y sus umbrales |
 | Velocidad del jugador | `PlayerController.speed` |
 | Campo de visión | `Main.init()`, `Math.toRadians(70.0f)` |
@@ -313,7 +362,7 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 | Texto del título | `RENGLONES` en `herramientas/GenerarTitulo.java` y volver a correrlo con el `.ttf` |
 | Posición del título | `MenuPrincipal.ESPACIO_TITULO` (distancia al primer botón) |
 | Fondo del menú y de "Generando mundo..." | `FondoTierra`: el bloque en `dibujar()`, `BRILLO` y `TAM_BALDOSA` |
-| Título, botones y posición de la pausa | `MenuPausa`: `TITULO`, `ESCALA_TITULO`, `ANCHO_BOTON`, `ALTO_BOTON`, `SEPARACION`, `ESPACIO_TITULO` y el constructor |
+| Título, botones, semilla y posición de la pausa | `MenuPausa`: `TITULO`, `ESCALA_TITULO`, `ANCHO_BOTON`, `ALTO_BOTON`, `SEPARACION`, `ESPACIO_TITULO`, `ESPACIO_SEMILLA`, `GRIS_SEMILLA` y el constructor |
 | Qué tan oscura es la capa de la pausa | `MenuPausa.OSCURIDAD` (0 = nada, 1 = negro) |
 | Cuánto se desenfoca el fondo de la pausa | `FondoDesenfocado.SIGMA` (y `REDUCCION`, cuánto se achica antes) |
 | Texto de la pantalla de carga | `PantallaGenerando.TEXTO` |
@@ -337,3 +386,4 @@ Estas salen de leer el código y no las he probado en el juego. Conviene confirm
 3. **La ventana es de tamaño fijo** (`GLFW_RESIZABLE` en falso) porque ni `glViewport`, ni la proyección, ni el HUD, ni los botones del menú, ni el fondo de la pausa se ajustan a otro tamaño: todos usan `SCREEN_WIDTH` y `SCREEN_HEIGHT`. Para poder redimensionarla habría que recalcular todo eso cuando cambia el tamaño.
 4. **La velocidad depende de los FPS**, porque el movimiento se suma por frame y no por tiempo transcurrido.
 5. **Las teclas 1–9 se leen una vez por frame** con `glfwGetKey`. Con pocos FPS, un toque más corto que un frame se puede perder. Se notó al probar con OpenGL por software (unos 10 FPS); con V-Sync a 60 FPS no debería pasar. Si pasa, se arregla igual que ESC: con un callback de teclado.
+6. **Todos los mundos tienen agua justo donde aparece el jugador.** Salió al probar las semillas (esto sí se midió, sin pantalla). El ruido Perlin vale exactamente 0,5 en los puntos enteros de su cuadrícula, y la columna (0, 0) cae en uno de esos puntos para todos los ruidos. Con el ruido de los ríos, 0,5 es justo el centro del cauce, así que con cualquier semilla hay un río en (0, 0) (y también en todas las columnas cuyas x y z son múltiplos de 125). El jugador aparece en el fondo, entre 4 y 16 bloques bajo el agua según la semilla (con 12345, 10 bloques: el y = 59 de la fase 4 del menú). Se podría arreglar desplazando las coordenadas del ruido con un valor sacado de la semilla, pero entonces el spawn a veces caería en el océano, así que también habría que buscar tierra firme para el spawn o ponerlo encima del agua.

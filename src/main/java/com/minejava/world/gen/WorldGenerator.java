@@ -1,12 +1,46 @@
 package com.minejava.world.gen;
 
+import java.util.Random;
+
 import com.minejava.world.Chunk;
 
 import static com.minejava.world.Block.*;
 
+// Genera el terreno de los chunks de UN mundo a partir de su semilla. Todo lo que es al azar (cuevas,
+// minerales, árboles, cactus y la roca madre) sale de un Random propio de cada chunk, que depende solo de
+// la semilla y de la posición del chunk: la misma semilla da el mismo mundo, y un chunk sale igual si se
+// descarga y se vuelve a cargar, sin importar en qué orden ni en qué hilo se genere.
+// Lo usan varios hilos a la vez: no guarda nada que cambie al generar.
+// El seno y el coseno usan StrictMath, que da el mismo resultado en cualquier equipo: con Math.sin
+// un solo bit distinto podría cambiar una nube o el camino de una cueva.
 public class WorldGenerator {
 
-    public static void generateTerrain(int[][][] blocks, int chunkX, int chunkZ) {
+    private final long semilla;
+    private final PerlinNoise ruido;
+    private final BiomeProvider biomas;
+    // Para mezclar la posición del chunk con la semilla, como Minecraft (ver randomDelChunk())
+    private final long multX;
+    private final long multZ;
+
+    public WorldGenerator(long semilla) {
+        this.semilla = semilla;
+        this.ruido = new PerlinNoise(semilla);
+        this.biomas = new BiomeProvider(ruido);
+
+        Random rand = new Random(semilla);
+        // "| 1" los hace impares: multiplicar por un impar nunca junta dos coordenadas distintas en un mismo número
+        this.multX = rand.nextLong() | 1L;
+        this.multZ = rand.nextLong() | 1L;
+    }
+
+    // El Random de un chunk. Minecraft lo hace igual: cada coordenada se multiplica por un número
+    // grande sacado de la semilla, así chunks vecinos no terminan con semillas parecidas.
+    private Random randomDelChunk(int chunkX, int chunkZ) {
+        return new Random((chunkX * multX + chunkZ * multZ) ^ semilla);
+    }
+
+    public void generateTerrain(int[][][] blocks, int chunkX, int chunkZ) {
+        Random rand = randomDelChunk(chunkX, chunkZ);
         
         int nivelAgua = 68; 
 
@@ -19,16 +53,16 @@ public class WorldGenerator {
                 float globalX = x + (chunkX * Chunk.CHUNK_SIZE);
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 
-                Biome biome = BiomeProvider.getBiome(globalX, globalZ);
-                float ruidoBiomaPuro = PerlinNoise.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
+                Biome biome = biomas.getBiome(globalX, globalZ);
+                float ruidoBiomaPuro = ruido.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
                 
-                float distorsion = (PerlinNoise.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
+                float distorsion = (ruido.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
                 float ruidoBioma = ruidoBiomaPuro + distorsion; 
                 
-                float ruidoBase = PerlinNoise.getNoise(globalX * 0.02f, globalZ * 0.02f); 
+                float ruidoBase = ruido.getNoise(globalX * 0.02f, globalZ * 0.02f); 
                 int alturaOriginal = (int)(ruidoBase * 20) + 74; 
 
-                float ruidoAgua = PerlinNoise.getNoise(globalX * 0.16f, globalZ * 0.16f);
+                float ruidoAgua = ruido.getNoise(globalX * 0.16f, globalZ * 0.16f);
                 float distanciaAlCanal = Math.abs(ruidoAgua - 0.5f); 
 
                 int alturaBase = alturaOriginal;
@@ -47,11 +81,11 @@ public class WorldGenerator {
 
                 if (esCuerpoAgua) {
                     float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
-                    float ruidoRugoso = PerlinNoise.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
+                    float ruidoRugoso = ruido.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
                     columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
                 }
 
-                float ruidoOceanoProfundo = PerlinNoise.getNoise(globalX * 0.04f, globalZ * 0.04f);
+                float ruidoOceanoProfundo = ruido.getNoise(globalX * 0.04f, globalZ * 0.04f);
                 int alturaOceano = 46 + (int)(ruidoOceanoProfundo * 14); 
 
                 if (ruidoBioma < 0.52f) {
@@ -75,14 +109,14 @@ public class WorldGenerator {
                         else blocks[x][y][z] = AIR; 
                     } else if (y == 0) {
                         blocks[x][y][z] = BEDROCK;  
-                    } else if (y <= 4 && Math.random() < (1.0f - (y * 0.2f))) {
+                    } else if (y <= 4 && rand.nextDouble() < (1.0f - (y * 0.2f))) {
                         blocks[x][y][z] = BEDROCK;  
                     } else if (y < columnHeight - 4) {
                         if (y < 38) {
                             blocks[x][y][z] = DEEPSLATE; 
                         } else if (y <= 43) {
                             float probabilidadPiedra = (y - 38) / 5.0f;
-                            blocks[x][y][z] = (Math.random() < probabilidadPiedra) ? STONE : DEEPSLATE;
+                            blocks[x][y][z] = (rand.nextDouble() < probabilidadPiedra) ? STONE : DEEPSLATE;
                         } else {
                             blocks[x][y][z] = STONE;   
                         }
@@ -102,7 +136,7 @@ public class WorldGenerator {
         int multiplicador = Math.max(1, areaChunk / 256); 
         int intentosCuevas = multiplicador * 2; 
         for(int i = 0; i < intentosCuevas; i++) {
-            if (Math.random() < 0.85) generarSistemaCuevas(blocks);
+            if (rand.nextDouble() < 0.85) generarSistemaCuevas(blocks, rand);
         }
 
         // =================================================================
@@ -114,18 +148,18 @@ public class WorldGenerator {
                 float globalX = x + (chunkX * Chunk.CHUNK_SIZE);
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 
-                Biome biome = BiomeProvider.getBiome(globalX, globalZ);
-                float ruidoBiomaPuro = PerlinNoise.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
-                float distorsion = (PerlinNoise.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
+                Biome biome = biomas.getBiome(globalX, globalZ);
+                float ruidoBiomaPuro = ruido.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
+                float distorsion = (ruido.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
                 float ruidoBioma = ruidoBiomaPuro + distorsion; 
 
-                float ruidoAgua = PerlinNoise.getNoise(globalX * 0.16f, globalZ * 0.16f);
+                float ruidoAgua = ruido.getNoise(globalX * 0.16f, globalZ * 0.16f);
                 float distanciaAlCanal = Math.abs(ruidoAgua - 0.5f); 
                 
                 if (distanciaAlCanal < 0.04f && ruidoBioma >= 0.50f) {
                     int alturaBase = 72; 
                     float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
-                    float ruidoRugoso = PerlinNoise.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
+                    float ruidoRugoso = ruido.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
                     int columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
                     boolean usarArena = (columnHeight <= nivelAgua + 1);
                     
@@ -143,10 +177,10 @@ public class WorldGenerator {
         // =================================================================
         // PASO 4: MINERALES, ÁRBOLES Y CACTUS
         // =================================================================
-        generarVetas(blocks, COAL_ORE, 40 * multiplicador, 80, 5, 10);
-        generarVetas(blocks, IRON_ORE, 35 * multiplicador, 50, 4, 8);
-        generarArboles(blocks, chunkX, chunkZ);
-        generarCactus(blocks, chunkX, chunkZ);
+        generarVetas(blocks, rand, COAL_ORE, 40 * multiplicador, 80, 5, 10);
+        generarVetas(blocks, rand, IRON_ORE, 35 * multiplicador, 50, 4, 8);
+        generarArboles(blocks, rand, chunkX, chunkZ);
+        generarCactus(blocks, rand, chunkX, chunkZ);
 
         // =================================================================
         // PASO 5: NUBES
@@ -158,9 +192,9 @@ public class WorldGenerator {
                 int globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 int celdaX = (int) Math.floor((double) globalX / escalaNube);
                 int celdaZ = (int) Math.floor((double) globalZ / escalaNube);
-                double pseudoRuido = Math.sin(celdaX * 12.9898 + celdaZ * 78.233) * 43758.5453;
+                double pseudoRuido = StrictMath.sin(celdaX * 12.9898 + celdaZ * 78.233) * 43758.5453;
                 pseudoRuido = pseudoRuido - Math.floor(pseudoRuido);
-                float controlDensidad = PerlinNoise.getNoise(celdaX * 0.05f, celdaZ * 0.05f);
+                float controlDensidad = ruido.getNoise(celdaX * 0.05f, celdaZ * 0.05f);
                 double umbralRequerido = 0.75 - (controlDensidad * 0.38);
                 
                 if (pseudoRuido > umbralRequerido && controlDensidad > -0.15f) {
@@ -174,12 +208,12 @@ public class WorldGenerator {
 
     // --- MÉTODOS AUXILIARES ---
     
-    private static void generarCactus(int[][][] blocks, int chunkX, int chunkZ) {
+    private void generarCactus(int[][][] blocks, Random rand, int chunkX, int chunkZ) {
         for (int x = 1; x < Chunk.CHUNK_SIZE - 1; x++) {
             for (int z = 1; z < Chunk.CHUNK_SIZE - 1; z++) {
                 float globalX = x + (chunkX * Chunk.CHUNK_SIZE);
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
-                Biome biome = BiomeProvider.getBiome(globalX, globalZ);
+                Biome biome = biomas.getBiome(globalX, globalZ);
 
                 if (biome != Biome.DESERT) continue;
 
@@ -193,8 +227,8 @@ public class WorldGenerator {
                 }
 
                 // REDUJE LA PROBABILIDAD DE 0.02f a 0.002f PARA QUE SE VEA COMO MINECRAFT
-                if (topY > 0 && topY >= 69 && blocks[x][topY][z] == SAND && Math.random() < 0.002f) {
-                    int alturaCactus = 1 + (int)(Math.random() * 3); 
+                if (topY > 0 && topY >= 69 && blocks[x][topY][z] == SAND && rand.nextDouble() < 0.002f) {
+                    int alturaCactus = 1 + (int)(rand.nextDouble() * 3); 
                     boolean puedeCrecer = true;
 
                     for (int i = 1; i <= alturaCactus; i++) {
@@ -221,35 +255,35 @@ public class WorldGenerator {
         }
     }
 
-    private static void generarSistemaCuevas(int[][][] blocks) { 
-        float craterX = (float)(Math.random() * Chunk.CHUNK_SIZE); 
-        float craterY = 12 + (float)(Math.random() * 18); 
-        float craterZ = (float)(Math.random() * Chunk.CHUNK_SIZE); 
-        float radioCrater = 8.0f + (float)(Math.random() * 5.0f); 
+    private static void generarSistemaCuevas(int[][][] blocks, Random rand) { 
+        float craterX = (float)(rand.nextDouble() * Chunk.CHUNK_SIZE); 
+        float craterY = 12 + (float)(rand.nextDouble() * 18); 
+        float craterZ = (float)(rand.nextDouble() * Chunk.CHUNK_SIZE); 
+        float radioCrater = 8.0f + (float)(rand.nextDouble() * 5.0f); 
         vaciarEsfera(blocks, craterX, craterY, craterZ, radioCrater); 
         vaciarEsfera(blocks, craterX + 3, craterY - 1, craterZ + 2, radioCrater * 0.8f); 
         
-        int numGusanosAscendentes = 2 + (int)(Math.random() * 3); 
+        int numGusanosAscendentes = 2 + (int)(rand.nextDouble() * 3); 
         for (int i = 0; i < numGusanosAscendentes; i++) { 
             float cx = craterX, cy = craterY, cz = craterZ; 
-            float yaw = (float)(Math.random() * Math.PI * 2); 
-            float pitch = 0.4f + (float)(Math.random() * 0.5f); 
-            int longitud = 120 + (int)(Math.random() * 40); 
-            float radioGusano = 2.0f + (float)Math.random() * 1.5f; 
+            float yaw = (float)(rand.nextDouble() * Math.PI * 2); 
+            float pitch = 0.4f + (float)(rand.nextDouble() * 0.5f); 
+            int longitud = 120 + (int)(rand.nextDouble() * 40); 
+            float radioGusano = 2.0f + (float)rand.nextDouble() * 1.5f; 
             for (int paso = 0; paso < longitud; paso++) { 
-                cx += Math.cos(yaw) * Math.cos(pitch); 
-                cy += Math.sin(pitch); 
-                cz += Math.sin(yaw) * Math.cos(pitch); 
-                yaw += (Math.random() - 0.5f) * 0.4f; 
-                pitch += (Math.random() - 0.5f) * 0.2f; 
+                cx += StrictMath.cos(yaw) * StrictMath.cos(pitch); 
+                cy += StrictMath.sin(pitch); 
+                cz += StrictMath.sin(yaw) * StrictMath.cos(pitch); 
+                yaw += (rand.nextDouble() - 0.5f) * 0.4f; 
+                pitch += (rand.nextDouble() - 0.5f) * 0.2f; 
                 pitch = Math.max(-0.1f, Math.min(1.2f, pitch)); 
                 vaciarEsfera(blocks, cx, cy, cz, radioGusano); 
             } 
         } 
         
-        if (Math.random() < 0.05) { 
-            int scanX = 2 + (int)(Math.random() * (Chunk.CHUNK_SIZE - 4)); 
-            int scanZ = 2 + (int)(Math.random() * (Chunk.CHUNK_SIZE - 4)); 
+        if (rand.nextDouble() < 0.05) { 
+            int scanX = 2 + (int)(rand.nextDouble() * (Chunk.CHUNK_SIZE - 4)); 
+            int scanZ = 2 + (int)(rand.nextDouble() * (Chunk.CHUNK_SIZE - 4)); 
             int superficieY = 0; 
             for (int y = Chunk.CHUNK_HEIGHT - 1; y >= 0; y--) { 
                 if (blocks[scanX][y][scanZ] == GRASS) { 
@@ -259,16 +293,16 @@ public class WorldGenerator {
             } 
             if (superficieY > 75) { 
                 float cx = scanX, cy = superficieY, cz = scanZ; 
-                float yaw = (float)(Math.random() * Math.PI * 2); 
-                float pitch = -0.5f - (float)(Math.random() * 0.4f); 
-                int longitudEntrada = 70 + (int)(Math.random() * 40); 
-                float radioEntrada = 2.5f + (float)Math.random() * 1.5f; 
+                float yaw = (float)(rand.nextDouble() * Math.PI * 2); 
+                float pitch = -0.5f - (float)(rand.nextDouble() * 0.4f); 
+                int longitudEntrada = 70 + (int)(rand.nextDouble() * 40); 
+                float radioEntrada = 2.5f + (float)rand.nextDouble() * 1.5f; 
                 for (int paso = 0; paso < longitudEntrada; paso++) { 
-                    cx += Math.cos(yaw) * Math.cos(pitch); 
-                    cy += Math.sin(pitch); 
-                    cz += Math.sin(yaw) * Math.cos(pitch); 
-                    yaw += (Math.random() - 0.5f) * 0.4f; 
-                    pitch += (Math.random() - 0.5f) * 0.2f; 
+                    cx += StrictMath.cos(yaw) * StrictMath.cos(pitch); 
+                    cy += StrictMath.sin(pitch); 
+                    cz += StrictMath.sin(yaw) * StrictMath.cos(pitch); 
+                    yaw += (rand.nextDouble() - 0.5f) * 0.4f; 
+                    pitch += (rand.nextDouble() - 0.5f) * 0.2f; 
                     pitch = Math.max(-1.2f, Math.min(0.0f, pitch)); 
                     vaciarEsfera(blocks, cx, cy, cz, radioEntrada); 
                 } 
@@ -313,14 +347,14 @@ public class WorldGenerator {
         } 
     }
 
-    private static void generarVetas(int[][][] blocks, int blockType, int intentos, int maxAltura, int minTam, int maxTam) { for (int i = 0; i < intentos; i++) { int x = (int)(Math.random() * Chunk.CHUNK_SIZE); int y = 5 + (int)(Math.random() * (maxAltura - 5)); int z = (int)(Math.random() * Chunk.CHUNK_SIZE); if (blocks[x][y][z] == STONE || blocks[x][y][z] == DEEPSLATE) { int tamaño = minTam + (int)(Math.random() * (maxTam - minTam)); for (int b = 0; b < tamaño; b++) { blocks[x][y][z] = blockType; x += (int)(Math.random() * 3) - 1; y += (int)(Math.random() * 3) - 1; z += (int)(Math.random() * 3) - 1; x = Math.max(0, Math.min(Chunk.CHUNK_SIZE - 1, x)); y = Math.max(5, Math.min(Chunk.CHUNK_HEIGHT - 1, y)); z = Math.max(0, Math.min(Chunk.CHUNK_SIZE - 1, z)); if (blocks[x][y][z] != STONE && blocks[x][y][z] != DEEPSLATE && blocks[x][y][z] != blockType) break; } } } }
+    private static void generarVetas(int[][][] blocks, Random rand, int blockType, int intentos, int maxAltura, int minTam, int maxTam) { for (int i = 0; i < intentos; i++) { int x = (int)(rand.nextDouble() * Chunk.CHUNK_SIZE); int y = 5 + (int)(rand.nextDouble() * (maxAltura - 5)); int z = (int)(rand.nextDouble() * Chunk.CHUNK_SIZE); if (blocks[x][y][z] == STONE || blocks[x][y][z] == DEEPSLATE) { int tamaño = minTam + (int)(rand.nextDouble() * (maxTam - minTam)); for (int b = 0; b < tamaño; b++) { blocks[x][y][z] = blockType; x += (int)(rand.nextDouble() * 3) - 1; y += (int)(rand.nextDouble() * 3) - 1; z += (int)(rand.nextDouble() * 3) - 1; x = Math.max(0, Math.min(Chunk.CHUNK_SIZE - 1, x)); y = Math.max(5, Math.min(Chunk.CHUNK_HEIGHT - 1, y)); z = Math.max(0, Math.min(Chunk.CHUNK_SIZE - 1, z)); if (blocks[x][y][z] != STONE && blocks[x][y][z] != DEEPSLATE && blocks[x][y][z] != blockType) break; } } } }
     
-    private static void generarArboles(int[][][] blocks, int chunkX, int chunkZ) { 
+    private void generarArboles(int[][][] blocks, Random rand, int chunkX, int chunkZ) { 
         for (int x = 1; x < Chunk.CHUNK_SIZE - 1; x++) { 
             for (int z = 1; z < Chunk.CHUNK_SIZE - 1; z++) {
                 int globalX = x + (chunkX * Chunk.CHUNK_SIZE);
                 int globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
-                Biome biome = BiomeProvider.getBiome(globalX, globalZ);
+                Biome biome = biomas.getBiome(globalX, globalZ);
                 if (!biome.canSpawnTrees) continue;
                 
                 int topY = 0;
@@ -371,15 +405,15 @@ public class WorldGenerator {
                         } 
                         if (hayArbolCerca) break; 
                     } 
-                    if (!hayArbolCerca && Math.random() < 0.10f) { 
+                    if (!hayArbolCerca && rand.nextDouble() < 0.10f) { 
                         blocks[x][topY][z] = DIRT; 
-                        generarArbolClasico(blocks, x, topY + 1, z); 
+                        generarArbolClasico(blocks, rand, x, topY + 1, z); 
                     } 
                 } 
             } 
         } 
     }
     
-    private static void generarArbolClasico(int[][][] blocks, int baseX, int baseY, int baseZ) { int alturaTronco = 4 + (int)(Math.random() * 2); for (int i = 0; i < alturaTronco; i++) setBlockEnGeneracion(blocks, baseX, baseY + i, baseZ, WOOD); int copaInicioY = baseY + (alturaTronco - 2); for (int y = copaInicioY; y < baseY + alturaTronco; y++) { for (int x = baseX - 2; x <= baseX + 2; x++) { for (int z = baseZ - 2; z <= baseZ + 2; z++) { if (x == baseX && z == baseZ && y < baseY + alturaTronco) continue; if ((Math.abs(x - baseX) == 2 && Math.abs(z - baseZ) == 2) && Math.random() > 0.7) continue; setBlockEnGeneracion(blocks, x, y, z, LEAVES); } } } int puntaY = baseY + alturaTronco; for (int x = baseX - 1; x <= baseX + 1; x++) { for (int z = baseZ - 1; z <= baseZ + 1; z++) setBlockEnGeneracion(blocks, x, puntaY, z, LEAVES); } setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX + 1, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX - 1, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ + 1, LEAVES); setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ - 1, LEAVES); }
+    private static void generarArbolClasico(int[][][] blocks, Random rand, int baseX, int baseY, int baseZ) { int alturaTronco = 4 + (int)(rand.nextDouble() * 2); for (int i = 0; i < alturaTronco; i++) setBlockEnGeneracion(blocks, baseX, baseY + i, baseZ, WOOD); int copaInicioY = baseY + (alturaTronco - 2); for (int y = copaInicioY; y < baseY + alturaTronco; y++) { for (int x = baseX - 2; x <= baseX + 2; x++) { for (int z = baseZ - 2; z <= baseZ + 2; z++) { if (x == baseX && z == baseZ && y < baseY + alturaTronco) continue; if ((Math.abs(x - baseX) == 2 && Math.abs(z - baseZ) == 2) && rand.nextDouble() > 0.7) continue; setBlockEnGeneracion(blocks, x, y, z, LEAVES); } } } int puntaY = baseY + alturaTronco; for (int x = baseX - 1; x <= baseX + 1; x++) { for (int z = baseZ - 1; z <= baseZ + 1; z++) setBlockEnGeneracion(blocks, x, puntaY, z, LEAVES); } setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX + 1, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX - 1, puntaY + 1, baseZ, LEAVES); setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ + 1, LEAVES); setBlockEnGeneracion(blocks, baseX, puntaY + 1, baseZ - 1, LEAVES); }
     private static void setBlockEnGeneracion(int[][][] blocks, int x, int y, int z, int blockType) { if (x >= 0 && x < Chunk.CHUNK_SIZE && y >= 0 && y < Chunk.CHUNK_HEIGHT && z >= 0 && z < Chunk.CHUNK_SIZE) { int bloqueActual = blocks[x][y][z]; if (bloqueActual == AIR || bloqueActual == LEAVES) blocks[x][y][z] = blockType; } }
 }
