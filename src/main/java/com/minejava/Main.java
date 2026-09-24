@@ -17,6 +17,7 @@ import com.minejava.player.Camera;
 import com.minejava.render.ShaderProgram;
 import com.minejava.render.Texture;
 import com.minejava.ui.Hud;
+import com.minejava.world.Chunk;
 import com.minejava.world.World;
 import com.minejava.player.Input;
 
@@ -107,8 +108,8 @@ public class Main {
             jugador.update(window, camara.getYaw(), mundo);
             camara.updatePosition(jugador.getPosition(), jugador.getCameraHeight());
             
-            int chunkActualX = Math.floorDiv(Math.round(jugador.getPosition().x), Constants.CHUNK_SIZE);
-            int chunkActualZ = Math.floorDiv(Math.round(jugador.getPosition().z), Constants.CHUNK_SIZE);
+            int chunkActualX = Math.floorDiv(Math.round(jugador.getPosition().x), Chunk.CHUNK_SIZE);
+            int chunkActualZ = Math.floorDiv(Math.round(jugador.getPosition().z), Chunk.CHUNK_SIZE);
 
             if (chunkActualX != ultimoChunkX || chunkActualZ != ultimoChunkZ) {
                 mundo.actualizarMundo(jugador.getPosition().x, jugador.getPosition().z);

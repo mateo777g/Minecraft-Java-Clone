@@ -14,7 +14,6 @@ public class Constants {
     public static final float MOUSE_SENSITIVITY = 0.15f;
     public static final Vector3f PLAYER_START_POSITION = new Vector3f(0.0f, 5.0f, 0.0f);
     public static final int ALTURA_MINIMA = -5;
-    public static final int CHUNK_SIZE = 16;
 
     // Hotbar (Usando nuestro nuevo Enum de bloques)
     public static final BlockType[] BLOQUES_HOTBAR = {
