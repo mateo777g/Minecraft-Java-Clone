@@ -152,11 +152,22 @@ Cada fase deja el juego funcionando, así se puede probar y hacer commit antes d
 
 **Lista cuando:** siempre apareces parado sobre el suelo, nunca en el cielo.
 
+**Cómo quedó:**
+
+- Nuevo estado `GENERANDO_MUNDO`. *Un jugador* hace `new Partida()` (crea el mundo, sin poner al jugador) y pasa a ese estado. Cada frame se dibuja `PantallaGenerando` y se sube una malla terminada a la GPU. Cuando `partida.estaLista()`, `Main.empezarAJugar()` captura el cursor, llama a `partida.comenzar()` (spawn + `Input.init()`) y pasa a `JUGANDO`.
+- `estaLista()` espera que el chunk del spawn tenga su terreno (`World.estaGenerado()`, con `terrenoGenerado` `volatile`) y también su malla en la GPU, así al entrar ya se ve el suelo.
+- El fondo de tierra pasó de `MenuPrincipal` a `FondoTierra`, para usarlo en las dos pantallas.
+- Dos cambios en `World` que salieron al probar sin pantalla, midiendo con un programa aparte en un equipo de 4 núcleos:
+  - **Los chunks se generan de adentro hacia afuera.** Antes se mandaban por filas desde la esquina (−4, −4) y el del spawn era el número 41 de 81: tardaba 6,6 s en estar listo. Ahora es el primero: 50–110 ms.
+  - **Cerrar a medio generar ya no deja el proceso vivo.** `World.cleanup()` usaba `shutdown()`, que deja terminar todas las tareas en cola. Con el mapa ya vacío, cada malla sale con todas las caras y tarda muchísimo: cerrar en "Generando mundo..." dejaba el proceso más de dos minutos trabajando. Ahora usa `shutdownNow()` y los hilos son *daemon*: termina en menos de medio segundo.
+- La prueba sin pantalla también confirmó el problema original: sin esperar, el spawn salía en y = 200; esperando, en y = 59.
+
 ### Fase 5: pausa y volver al menú
 
 - ESC durante la partida → estado `PAUSA`: el mundo se sigue viendo quieto, con una capa oscura encima y los botones *Volver al juego* y *Salir al menú*. El cursor queda libre.
 - *Volver al juego*: captura el cursor otra vez y vuelve a `JUGANDO`.
 - *Salir al menú*: `partida.cleanup()` (llama a `World.cleanup()`, que libera los chunks de la GPU y apaga los hilos), desactivar los callbacks de `Input` (ponerlos en `null` y liberar los anteriores con `.free()`), `partida = null` y estado `MENU_PRINCIPAL`.
+- Ojo: `shutdownNow()` descarta los chunks en cola, pero los que ya se estaban generando terminan igual. Como el mapa ya está vacío, su malla sale con todas las caras (mucha memoria y CPU un rato). Al cerrar el juego no importa porque los hilos son *daemon*; al volver al menú sí. Se puede arreglar haciendo que la tarea no arme la malla si el mundo ya se cerró.
 
 **Lista cuando:** puedes entrar y salir del mundo varias veces seguidas sin que el juego se trabe, sin saltos de cámara al volver a entrar y sin que la memoria suba cada vez.
 

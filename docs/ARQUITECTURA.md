@@ -9,13 +9,13 @@ Todo el código vive en `src/main/java/com/minejava/`:
 ```text
 com/minejava/
 ├── Main.java          Punto de entrada: ventana, OpenGL y ciclo principal
-├── EstadoJuego.java   Qué pantalla se dibuja: menú o partida
+├── EstadoJuego.java   Qué pantalla se dibuja: menú, "Generando mundo..." o partida
 ├── Partida.java       Mundo, jugador y cámara de una partida
 ├── render/            Todo lo que habla con la GPU
 ├── world/             Datos del mundo: chunks, bloques, interacción
 │   └── gen/           Generación procedural del terreno
 ├── player/            Jugador, cámara y entrada (teclado y ratón)
-├── ui/                Interfaz 2D (menú de inicio, texto, hotbar y mira)
+├── ui/                Interfaz 2D (menú de inicio, pantalla de carga, texto, hotbar y mira)
 └── config/            Constantes de configuración
 ```
 
@@ -23,13 +23,13 @@ Fuera del código del juego está `herramientas/`, con dos programas que generan
 
 | Paquete | Clase | Qué hace |
 | --- | --- | --- |
-| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders, textura y fuente, guarda el estado actual y corre el ciclo del juego. Crea la `Partida` cuando se aprieta *Un jugador*. `Main.Launcher` tiene el `main()`. |
-| `com.minejava` | `EstadoJuego` | `MENU_PRINCIPAL` o `JUGANDO`: le dice al ciclo qué dibujar en cada frame. |
-| `com.minejava` | `Partida` | Lo que pertenece a un mundo: el `World`, el `PlayerController` y la `Camera`. Calcula el spawn, activa `Input`, y en cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. |
+| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders, textura y fuente, guarda el estado actual y corre el ciclo del juego. Crea la `Partida` cuando se aprieta *Un jugador* y la empieza cuando el chunk del spawn está listo. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `EstadoJuego` | `MENU_PRINCIPAL`, `GENERANDO_MUNDO` o `JUGANDO`: le dice al ciclo qué dibujar en cada frame. |
+| `com.minejava` | `Partida` | Lo que pertenece a un mundo: el `World`, el `PlayerController` y la `Camera`. Avisa cuándo el chunk del spawn está listo (`estaLista()`); entonces calcula el spawn y activa `Input` (`comenzar()`). En cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. |
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
 | `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). Guarda su tamaño (`getAncho()`, `getAlto()`). |
 | `render` | `ChunkMeshBuilder` | Convierte los bloques de un chunk en una lista de vértices, dibujando solo las caras visibles. |
-| `world` | `World` | Guarda los chunks activos, decide cuáles cargar y cuáles descargar, los dibuja y resuelve romper/poner bloques. |
+| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. |
 | `world` | `Chunk` | Un pedazo de 48 × 200 × 48 bloques con sus mallas (opaca y transparente) en la GPU. |
 | `world` | `Block` | Los IDs de todos los bloques y `isSolid()`. |
 | `world.gen` | `WorldGenerator` | Llena un chunk: terreno, cuevas, ríos, minerales, árboles, cactus y nubes. |
@@ -40,7 +40,9 @@ Fuera del código del juego está `herramientas/`, con dos programas que generan
 | `player` | `Camera` | Posición y rotación de la cámara; calcula la matriz de vista y la dirección a la que miras. |
 | `player` | `Input` | Callbacks de GLFW: ratón (mirar, romper, poner, pick block, rueda) y teclas 1–9 de la hotbar. Se registran al crear la `Partida`, así que en el menú no existen. |
 | `ui` | `Hud` | Dibuja la hotbar (con los bloques en 3D) y la mira. |
-| `ui` | `MenuPrincipal` | El menú de inicio: fondo de tierra oscurecida, el título (`titulo.png`) y los botones *Un jugador* y *Salir*. Lee el ratón cada frame y avisa cuándo se hizo clic en cada botón. |
+| `ui` | `MenuPrincipal` | El menú de inicio: fondo de tierra (`FondoTierra`), el título (`titulo.png`) y los botones *Un jugador* y *Salir*. Lee el ratón cada frame y avisa cuándo se hizo clic en cada botón. |
+| `ui` | `PantallaGenerando` | La pantalla de "Generando mundo...": el fondo de tierra con ese texto en el centro. |
+| `ui` | `FondoTierra` | El fondo de las pantallas de menú: la casilla de tierra del atlas repetida por toda la pantalla y oscurecida. |
 | `ui` | `Boton` | Un rectángulo gris con texto que sabe si el ratón está encima. Cuando lo está, se aclara, le sale un borde blanco y el texto se pone amarillo claro. |
 | `ui` | `Texto` | Dibuja texto con la fuente de píxeles `fuente.png`, con sombra como en Minecraft. Sabe medir un texto y centrarlo. |
 | `config` | `Constants` | Tamaño y título de la ventana, sensibilidad del ratón, posición inicial y bloques de la hotbar. |
@@ -70,12 +72,15 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 5. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
 6. Arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
 
-Al hacer clic en *Un jugador*, `iniciarPartida()` captura el cursor (`GLFW_CURSOR_DISABLED`), apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú), hace `new Partida(window)` y pasa a `JUGANDO`. El constructor de `Partida` hace el resto:
+Al hacer clic en *Un jugador*, `iniciarPartida()` hace `new Partida()` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0), empezando por los más cercanos.
 
-1. Crea el `PlayerController` y la `Camera`.
-2. Crea el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0).
-3. Busca la altura de la superficie en (0, 0) y pone al jugador encima, en (0.5, altura, 0.5).
-4. Llama a `Input.init()`, que registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
+Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuando el chunk del spawn, el que contiene la columna (0, 0), ya tiene su terreno y su malla en la GPU (`partida.estaLista()`), `empezarAJugar()`:
+
+1. Captura el cursor (`GLFW_CURSOR_DISABLED`) y apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú).
+2. Llama a `partida.comenzar()`, que busca la altura de la superficie en (0, 0), pone al jugador encima, en (0.5, altura + 1, 0.5), y llama a `Input.init()`. `Input.init()` registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
+3. Pasa a `JUGANDO`.
+
+Hay que esperar porque, hasta que su terreno se genera, el chunk está lleno de ceros (piedra): la "superficie" saldría en y = 200 y el jugador aparecería encima de las nubes. Esperar también a la malla hace que al entrar ya se vea el suelo.
 
 Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y después libera el shader, las texturas (atlas, fuente y título) y la ventana.
 
@@ -89,6 +94,14 @@ Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y 
 2. `menu.update()`: lee la posición del ratón (`glfwGetCursorPos`) para iluminar el botón que está debajo, y el botón izquierdo (`glfwGetMouseButton`). El clic cuenta al **soltar** el botón, así mantenerlo apretado no cuenta como varios clics.
 3. `menu.render()`: dibuja el fondo (la casilla de tierra del atlas repetida en baldosas de 64 px y oscurecida), el título y los dos botones con su texto, con `glOrtho` y `glBegin`/`glEnd` como el HUD.
 4. Si se hizo clic en *Un jugador* llama a `iniciarPartida()`; si fue en *Salir*, marca la ventana para cerrarse.
+5. Intercambia buffers y procesa eventos.
+
+**`GENERANDO_MUNDO`:**
+
+1. Limpia la pantalla.
+2. `partida.updateGenerando()`: sube a la GPU una malla terminada, igual que en la partida, así al entrar ya se ve buena parte del mundo.
+3. `PantallaGenerando.render()`: el fondo de tierra y "Generando mundo..." en el centro.
+4. Si `partida.estaLista()`, llama a `empezarAJugar()`.
 5. Intercambia buffers y procesa eventos.
 
 **`JUGANDO`:** los pasos 2 a 6 están en `Partida.update()` y los pasos 7 y 8 en `Partida.render()`:
@@ -120,6 +133,7 @@ Hilo principal                         Hilos secundarios (núcleos - 1)
 actualizarMundo()
   ├─ crea el Chunk vacío y lo guarda
   └─ manda la tarea al pool ─────────► generarTerrenoAsincrono()
+     (los más cercanos primero)
                                           ├─ WorldGenerator.generateTerrain()  (solo la 1.ª vez)
                                           └─ ChunkMeshBuilder: malla opaca y transparente
                                        ◄── lo mete en la cola chunksListosParaGL
@@ -130,6 +144,10 @@ render()
 ```
 
 OpenGL solo se puede usar desde el hilo principal. Por eso los hilos secundarios dejan los vértices en `float[]` y el hilo principal los sube después.
+
+- `actualizarMundo()` ordena los chunks que faltan por distancia al jugador antes de mandarlos al pool, que los atiende en el orden en que llegan. Así el chunk donde está el jugador sale primero: al empezar una partida es el del spawn, y la pantalla de "Generando mundo..." dura una fracción de segundo en vez de esperar a que se generen la mitad de los 81.
+- `Chunk.terrenoGenerado` es `volatile`: lo escribe un hilo secundario y lo lee el principal (`World.estaGenerado()`). Así, cuando el hilo principal lo ve en `true`, también ve los bloques que se escribieron antes.
+- Los hilos del pool son *daemon* y `World.cleanup()` usa `shutdownNow()`, que descarta los chunks que esperan en la cola. Con `shutdown()` se generarían igual después de vaciar el mapa y, como ya no tienen vecinos, cada malla saldría con todas las caras: cerrar el juego en "Generando mundo..." dejaba el proceso varios minutos vivo.
 
 Los chunks que quedan a más de `renderDistance` del jugador se liberan (`chunk.cleanup()`) y se sacan del mapa.
 
@@ -258,11 +276,13 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 | Letras de la fuente | `herramientas/fuente.txt` y volver a correr `GenerarFuente` |
 | Texto del título | `RENGLONES` en `herramientas/GenerarTitulo.java` y volver a correrlo con el `.ttf` |
 | Posición del título | `MenuPrincipal.ESPACIO_TITULO` (distancia al primer botón) |
-| Fondo del menú | `MenuPrincipal.dibujarFondo()` (bloque, oscurecido) y `TAM_BALDOSA` |
+| Fondo del menú y de "Generando mundo..." | `FondoTierra`: el bloque en `dibujar()`, `BRILLO` y `TAM_BALDOSA` |
+| Texto de la pantalla de carga | `PantallaGenerando.TEXTO` |
+| Dónde aparece el jugador | `Partida.SPAWN_X` y `SPAWN_Z` |
 | Color del cielo | `Main.init()`, `glClearColor` |
 | Color del agua y de las nubes | `shaders/fragment.glsl` |
 
-`Constants.PLAYER_START_POSITION` casi no tiene efecto: en cuanto se crea el mundo, el jugador se mueve a la superficie en (0.5, altura, 0.5).
+`Constants.PLAYER_START_POSITION` casi no tiene efecto: en cuanto el chunk del spawn está listo, el jugador se mueve a la superficie en (0.5, altura + 1, 0.5).
 
 ## Dependencias y plataforma
 
@@ -274,8 +294,7 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 Estas salen de leer el código y no las he probado en el juego. Conviene confirmarlas antes de arreglarlas:
 
 1. **Posible desfase de medio bloque.** `ChunkMeshBuilder` dibuja cada bloque centrado en su coordenada entera (de x − 0.5 a x + 0.5), pero las colisiones y el rayo para romper/poner usan `Math.floor`, o sea que tratan al bloque como si ocupara de x a x + 1. Si es así, se notaría como que el jugador flota medio bloque sobre el suelo, o que al apuntar cerca de un borde se rompe o se pone el bloque de al lado.
-2. **Posibles huecos en los bordes de chunk.** Un chunk nuevo empieza lleno de ceros, y 0 es `STONE`. Si la malla de un chunk se arma antes de que su vecino termine de generarse, las caras del borde se ocultan como si hubiera piedra al lado, y no se vuelven a calcular cuando el vecino ya está listo. Pasa algo parecido al romper un bloque justo en el borde, porque solo se reconstruye la malla de ese chunk y no la del vecino.
+2. **Posibles huecos en los bordes de chunk.** Un chunk nuevo empieza lleno de ceros, y 0 es `STONE`. Si la malla de un chunk se arma antes de que su vecino termine de generarse, las caras del borde se ocultan como si hubiera piedra al lado, y no se vuelven a calcular cuando el vecino ya está listo. Pasa algo parecido al romper un bloque justo en el borde, porque solo se reconstruye la malla de ese chunk y no la del vecino. Como los chunks se generan de adentro hacia afuera, el del spawn siempre arma su malla antes que sus vecinos: si estos huecos existen, se verían justo alrededor de donde aparece el jugador.
 3. **La ventana es de tamaño fijo** (`GLFW_RESIZABLE` en falso) porque ni `glViewport`, ni la proyección, ni el HUD, ni los botones del menú se ajustan a otro tamaño: todos usan `SCREEN_WIDTH` y `SCREEN_HEIGHT`. Para poder redimensionarla habría que recalcular todo eso cuando cambia el tamaño.
 4. **La velocidad depende de los FPS**, porque el movimiento se suma por frame y no por tiempo transcurrido.
 5. **`Hud.cleanup()` nunca se llama.** Al cerrar el juego no importa, pero sí importará cuando se pueda salir al menú y volver a entrar.
-6. **El spawn no espera a que el terreno exista.** El constructor de `Partida` calcula la altura de la superficie justo después de `new World()`, mientras el chunk (0, 0) todavía se está generando en otro hilo. Si aún no terminó, ese chunk está lleno de ceros (piedra), la "superficie" sale en y = 200 y el jugador aparece muy arriba, encima de las nubes. El menú de inicio es buen momento para arreglarlo con una pantalla de "Generando mundo…" (ver `PLAN_MENU_INICIO.md`).

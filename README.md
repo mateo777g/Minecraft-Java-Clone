@@ -57,7 +57,7 @@ Los IDs de todos los bloques están en `world/Block.java` (en el mismo orden que
 | Cambiar bloque seleccionado | Rueda del ratón |
 | Copiar el bloque apuntado | Clic central |
 
-El juego empieza en el menú de inicio con el cursor libre; al darle a *Un jugador* se crea el mundo y el cursor se captura.
+El juego empieza en el menú de inicio con el cursor libre; al darle a *Un jugador* sale "Generando mundo..." mientras se genera el terreno donde apareces, y al entrar el cursor se captura.
 
 ## Requisitos
 
@@ -90,7 +90,7 @@ Después, ejecuta la clase `com.minejava.Main.Launcher` desde tu IDE como una ap
 ```text
 src/main/java/com/minejava/
 ├── Main.java                     # Inicialización y ciclo principal del juego
-├── EstadoJuego.java              # Pantalla actual: menú o jugando
+├── EstadoJuego.java              # Pantalla actual: menú, generando mundo o jugando
 ├── Partida.java                  # Mundo, jugador y cámara de una partida
 ├── render/
 │   ├── ChunkMeshBuilder.java     # Construcción de geometría voxel
@@ -111,8 +111,10 @@ src/main/java/com/minejava/
 │   └── PlayerController.java     # Movimiento y colisiones
 ├── ui/
 │   ├── Boton.java                # Botón del menú (se ilumina con el ratón encima)
+│   ├── FondoTierra.java          # Fondo de tierra oscurecida de los menús
 │   ├── Hud.java                  # Hotbar y mira
 │   ├── MenuPrincipal.java        # Menú de inicio: fondo, título y botones Un jugador y Salir
+│   ├── PantallaGenerando.java    # Pantalla de "Generando mundo..."
 │   └── Texto.java                # Dibuja texto con la fuente de píxeles
 └── config/
     └── Constants.java            # Configuración general y bloques de la hotbar
@@ -134,7 +136,7 @@ docs/                        # Documentación del proyecto (ver abajo)
 
 ## Próximo paso: menú de inicio
 
-El juego ya arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* crea el mundo y empieza la partida en la misma ventana. Lo que sigue es una pantalla de "Generando mundo…" y un menú de pausa para volver al inicio. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
+El juego ya arranca en un menú de inicio: un fondo de tierra, el título y los botones *Un jugador* y *Salir*. *Un jugador* crea el mundo, muestra "Generando mundo..." hasta que el terreno donde apareces está listo y empieza la partida en la misma ventana. Lo que sigue es un menú de pausa para volver al inicio. El plan por fases está en [`docs/PLAN_MENU_INICIO.md`](docs/PLAN_MENU_INICIO.md).
 
 ## Limitaciones actuales
 

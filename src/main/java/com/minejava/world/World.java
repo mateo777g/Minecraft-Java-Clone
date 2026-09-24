@@ -3,7 +3,10 @@ package com.minejava.world;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -25,7 +28,12 @@ public class World {
         this.chunksListosParaGL = new ConcurrentLinkedQueue<>();
         
         int hilosDisponibles = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
-        this.chunkGenerators = Executors.newFixedThreadPool(hilosDisponibles);
+        // Hilos "daemon": si se cierra el juego con chunks a medio generar, no impiden que el programa termine
+        this.chunkGenerators = Executors.newFixedThreadPool(hilosDisponibles, tarea -> {
+            Thread hilo = new Thread(tarea, "generador-chunks");
+            hilo.setDaemon(true);
+            return hilo;
+        });
         
         actualizarMundo(0, 0); 
     }
@@ -38,22 +46,28 @@ public class World {
         int centroChunkX = Math.floorDiv(Math.round(playerX), Chunk.CHUNK_SIZE);
         int centroChunkZ = Math.floorDiv(Math.round(playerZ), Chunk.CHUNK_SIZE);
 
+        List<int[]> faltantes = new ArrayList<>();
         for (int x = -renderDistance; x <= renderDistance; x++) {
             for (int z = -renderDistance; z <= renderDistance; z++) {
-                int targetCX = centroChunkX + x;
-                int targetCZ = centroChunkZ + z;
-                long clave = generarClave(targetCX, targetCZ);
-
-                if (!chunksActivos.containsKey(clave)) {
-                    Chunk nuevoChunk = new Chunk(this, targetCX, targetCZ);
-                    chunksActivos.put(clave, nuevoChunk); 
-                    
-                    chunkGenerators.submit(() -> {
-                        nuevoChunk.generarTerrenoAsincrono(); 
-                        chunksListosParaGL.add(nuevoChunk); 
-                    });
+                if (!chunksActivos.containsKey(generarClave(centroChunkX + x, centroChunkZ + z))) {
+                    faltantes.add(new int[] { x, z });
                 }
             }
+        }
+        // Los más cercanos al jugador primero: el pool los genera en el orden en que llegan, así el chunk
+        // donde aparece el jugador sale enseguida y la pantalla de "Generando mundo..." dura poco
+        faltantes.sort(Comparator.comparingInt(d -> d[0] * d[0] + d[1] * d[1]));
+
+        for (int[] d : faltantes) {
+            int targetCX = centroChunkX + d[0];
+            int targetCZ = centroChunkZ + d[1];
+            Chunk nuevoChunk = new Chunk(this, targetCX, targetCZ);
+            chunksActivos.put(generarClave(targetCX, targetCZ), nuevoChunk);
+
+            chunkGenerators.submit(() -> {
+                nuevoChunk.generarTerrenoAsincrono(); 
+                chunksListosParaGL.add(nuevoChunk); 
+            });
         }
 
         Iterator<Map.Entry<Long, Chunk>> iterator = chunksActivos.entrySet().iterator();
@@ -127,6 +141,24 @@ public class World {
                 chunksListosParaGL.add(modificado);
             });
         }
+    }
+
+    // Si el chunk que contiene la columna (x, z) del mundo ya tiene su terreno.
+    // Lo usa la pantalla de "Generando mundo..." para saber cuándo se puede calcular el spawn.
+    public boolean estaGenerado(int x, int z) {
+        Chunk chunk = chunkEn(x, z);
+        return chunk != null && chunk.estaGenerado();
+    }
+
+    // Si el chunk que contiene la columna (x, z) del mundo ya tiene su malla en la GPU y se dibuja
+    public boolean estaListoParaRenderizar(int x, int z) {
+        Chunk chunk = chunkEn(x, z);
+        return chunk != null && chunk.estaListoParaRenderizar();
+    }
+
+    // El chunk que contiene la columna (x, z) del mundo, o null si no está cargado
+    private Chunk chunkEn(int x, int z) {
+        return chunksActivos.get(generarClave(Math.floorDiv(x, Chunk.CHUNK_SIZE), Math.floorDiv(z, Chunk.CHUNK_SIZE)));
     }
 
     public float getAlturaSuperficie(int x, int z) {
@@ -205,7 +237,9 @@ public class World {
     }
 
     public void cleanup() {
-        chunkGenerators.shutdown(); 
+        // shutdownNow() descarta los chunks que esperan en la cola. Con shutdown() se generarían igual y,
+        // como el mapa ya está vacío, cada malla saldría con todas las caras (sin vecinos) y tardaría muchísimo.
+        chunkGenerators.shutdownNow();
         for (Chunk chunk : chunksActivos.values()) {
             if (chunk != null) chunk.cleanup();
         }

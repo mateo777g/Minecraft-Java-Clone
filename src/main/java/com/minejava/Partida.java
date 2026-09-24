@@ -18,10 +18,13 @@ import com.minejava.world.Chunk;
 import com.minejava.world.World;
 
 // Todo lo que pertenece a UNA partida: el mundo, el jugador y la cámara.
-// Crear mundo = new Partida(window); salir = partida.cleanup().
+// Crear mundo = new Partida(); cuando estaLista(), comenzar(window); salir = partida.cleanup().
 public class Partida {
 
     private static final int RENDER_DISTANCE = 4; // 4 → 9 × 9 chunks
+    // Columna donde aparece el jugador
+    private static final int SPAWN_X = 0;
+    private static final int SPAWN_Z = 0;
 
     private final PlayerController jugador;
     private final Camera camara;
@@ -31,15 +34,32 @@ public class Partida {
     private int ultimoChunkX = Integer.MAX_VALUE;
     private int ultimoChunkZ = Integer.MAX_VALUE;
 
-    public Partida(long window) {
+    // Crea el mundo, que empieza a generar sus chunks en otros hilos. El jugador todavía no tiene
+    // spawn: eso lo hace comenzar(), cuando el terreno ya existe.
+    public Partida() {
         jugador = new PlayerController(Constants.PLAYER_START_POSITION);
         camara = new Camera();
 
         mundo = new World(RENDER_DISTANCE);
+    }
 
-        // Spawn: encima de la superficie en (0, 0)
-        float spawnY = mundo.getAlturaSuperficie(0, 0);
-        jugador.setPosition(new Vector3f(0.5f, spawnY + 1.0f, 0.5f));
+    // Mientras sale "Generando mundo...": sube a la GPU las mallas que ya estén terminadas,
+    // así al entrar ya se ve buena parte del mundo
+    public void updateGenerando() {
+        mundo.procesarMallasPendientes();
+    }
+
+    // El spawn se calcula con los bloques del chunk del spawn: mientras su terreno no se genera son
+    // todos piedra y el jugador aparecería en y = 200, encima de las nubes. Además se espera a que su
+    // malla esté en la GPU, así al entrar ya se ve el suelo.
+    public boolean estaLista() {
+        return mundo.estaGenerado(SPAWN_X, SPAWN_Z) && mundo.estaListoParaRenderizar(SPAWN_X, SPAWN_Z);
+    }
+
+    // Pone al jugador encima de la superficie y activa los controles. Solo cuando estaLista().
+    public void comenzar(long window) {
+        float spawnY = mundo.getAlturaSuperficie(SPAWN_X, SPAWN_Z);
+        jugador.setPosition(new Vector3f(SPAWN_X + 0.5f, spawnY + 1.0f, SPAWN_Z + 0.5f));
 
         Input.init(window, camara, mundo, jugador);
     }

@@ -10,6 +10,7 @@ import com.minejava.config.Constants;
 import com.minejava.render.ShaderProgram;
 import com.minejava.render.Texture;
 import com.minejava.ui.MenuPrincipal;
+import com.minejava.ui.PantallaGenerando;
 import com.minejava.ui.Texto;
 
 public class Main {
@@ -78,13 +79,20 @@ public class Main {
         estado = EstadoJuego.MENU_PRINCIPAL;
     }
 
-    // Botón "Jugar": captura el cursor, crea el mundo, pone al jugador y activa los controles
+    // Botón "Un jugador": crea el mundo, que se empieza a generar en otros hilos,
+    // y muestra "Generando mundo..." mientras tanto
     private void iniciarPartida() {
+        partida = new Partida();
+        estado = EstadoJuego.GENERANDO_MUNDO;
+    }
+
+    // Cuando el chunk del spawn está listo: captura el cursor, pone al jugador y activa los controles
+    private void empezarAJugar() {
         GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
         // En la partida nadie lee glfwGetMouseButton: sin esto un clic del juego quedaría
         // "pegado" y el próximo menú lo tomaría como un clic en sus botones
         GLFW.glfwSetInputMode(window, GLFW.GLFW_STICKY_MOUSE_BUTTONS, GLFW.GLFW_FALSE);
-        partida = new Partida(window);
+        partida.comenzar(window);
         estado = EstadoJuego.JUGANDO;
     }
 
@@ -103,6 +111,11 @@ public class Main {
                     menu.render(blockTexture, fuente);
                     if (menu.clicEnJugar()) iniciarPartida();
                     else if (menu.clicEnSalir()) GLFW.glfwSetWindowShouldClose(window, true);
+                }
+                case GENERANDO_MUNDO -> {
+                    partida.updateGenerando();
+                    PantallaGenerando.render(blockTexture, fuente);
+                    if (partida.estaLista()) empezarAJugar();
                 }
                 case JUGANDO -> {
                     partida.update(window);

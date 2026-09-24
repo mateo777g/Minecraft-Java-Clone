@@ -4,9 +4,7 @@ import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 
 import com.minejava.config.Constants;
-import com.minejava.render.ChunkMeshBuilder;
 import com.minejava.render.Texture;
-import com.minejava.world.Block;
 
 // Pantalla de inicio: fondo de tierra, el título y los botones Un jugador y Salir.
 // Lee el ratón cada frame con glfwGetCursorPos/glfwGetMouseButton, sin tocar los callbacks de Input.
@@ -15,7 +13,6 @@ public class MenuPrincipal {
     private static final float ANCHO_BOTON = 400f;
     private static final float ALTO_BOTON = 40f;
     private static final float SEPARACION = 16f;
-    private static final float TAM_BALDOSA = 64f; // Tamaño en pantalla de cada cuadro de tierra del fondo
     private static final float ESPACIO_TITULO = 56f; // Entre el título y el primer botón
 
     private final Texture titulo;
@@ -71,7 +68,7 @@ public class MenuPrincipal {
         GL11.glPushMatrix();
         GL11.glLoadIdentity();
 
-        dibujarFondo(atlas);
+        FondoTierra.dibujar(atlas);
         dibujarTitulo();
 
         GL11.glDisable(GL11.GL_TEXTURE_2D);
@@ -84,29 +81,6 @@ public class MenuPrincipal {
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
         GL11.glPopMatrix();
         GL11.glEnable(GL11.GL_DEPTH_TEST);
-    }
-
-    // La casilla de tierra del atlas repetida por toda la pantalla y oscurecida, como en Minecraft.
-    // GL_REPEAT repetiría el atlas entero, así que se dibuja un cuadrado por baldosa.
-    private void dibujarFondo(Texture atlas) {
-        float[] uv = ChunkMeshBuilder.getUVs(Block.DIRT);
-        float uMin = uv[0], uMax = uv[1], vMin = uv[2], vMax = uv[3];
-
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-        atlas.bind();
-        GL11.glColor4f(0.25f, 0.25f, 0.25f, 1f); // El color multiplica a la textura: la oscurece
-
-        GL11.glBegin(GL11.GL_QUADS);
-        for (float y = 0; y < Constants.SCREEN_HEIGHT; y += TAM_BALDOSA) {
-            for (float x = 0; x < Constants.SCREEN_WIDTH; x += TAM_BALDOSA) {
-                // Texture voltea la imagen al cargarla: vMax es el borde de arriba de la casilla
-                GL11.glTexCoord2f(uMin, vMax); GL11.glVertex2f(x, y);
-                GL11.glTexCoord2f(uMax, vMax); GL11.glVertex2f(x + TAM_BALDOSA, y);
-                GL11.glTexCoord2f(uMax, vMin); GL11.glVertex2f(x + TAM_BALDOSA, y + TAM_BALDOSA);
-                GL11.glTexCoord2f(uMin, vMin); GL11.glVertex2f(x, y + TAM_BALDOSA);
-            }
-        }
-        GL11.glEnd();
     }
 
     // A su tamaño real (1 píxel de la imagen = 1 píxel de la pantalla), centrado arriba de los botones.

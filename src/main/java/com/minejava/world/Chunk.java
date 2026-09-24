@@ -20,7 +20,10 @@ public class Chunk {
     private int chunkX;
     private int chunkZ;
     private int[][][] blocks; 
-    private boolean terrenoGenerado = false; // Para no recalcular montañas si solo rompemos un bloque
+    // Para no recalcular montañas si solo rompemos un bloque. Es volatile porque lo escribe un hilo
+    // secundario y lo lee el principal (pantalla de "Generando mundo..."): al verlo en true, el hilo
+    // principal también ve los bloques que se escribieron antes.
+    private volatile boolean terrenoGenerado = false;
 
     // Capa Opaca (Terreno)
     private int opaqueVaoId = 0;
@@ -128,6 +131,11 @@ public class Chunk {
     
     public boolean estaListoParaRenderizar() {
         return readyToRender;
+    }
+
+    // Antes de esto el arreglo de bloques está lleno de ceros, o sea de piedra
+    public boolean estaGenerado() {
+        return terrenoGenerado;
     }
 
     public void renderOpaque() {
