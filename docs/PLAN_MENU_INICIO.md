@@ -1,6 +1,6 @@
 # Plan: menú de inicio
 
-**Estado:** en curso (ver la tabla "Estado de las fases").
+**Estado:** en curso. Las fases 1 a 5 están hechas; la siguiente es la fase 6 (ver la tabla "Estado de las fases").
 
 ## Cómo trabajamos: una fase por conversación y `/clear` entre fases
 
@@ -19,7 +19,7 @@ Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/fold
 | 2. Estados y un menú mínimo | hecha (compila) | `33c3d1b` | Que al abrir salga el menú (fondo de tierra oscura, botón verde *Jugar* y rojo *Salir*); que cada botón se aclare y tenga borde blanco al pasar el ratón; que *Jugar* entre al mundo sin salto de cámara y *Salir* cierre el juego; que el clic en *Jugar* no rompa ni ponga un bloque; que la ventana ya no se pueda agrandar. |
 | 3. Texto | hecha y probada en Windows | `7a1844c` | Nada. El usuario lo probó el 2026-09-24: el título, los botones grises con *Un jugador* y *Salir* y el hover se ven bien; *Un jugador* entra al mundo y el HUD se ve igual que antes. |
 | 4. Pantalla de "Generando mundo…" | hecha y probada en Windows | `5b4d141` | Nada. El usuario lo probó el 2026-09-24 y funciona bien. |
-| 5. Pausa y volver al menú | hecha (compila; probada sin GPU en Linux) | `a93fa50` | Que ESC en la partida abra la pausa: el mundo y el HUD desenfocados con una capa oscura, *Juego en pausa* y los botones *Volver al juego* y *Salir al menú* centrados (con la ú bien escrita) y el cursor en el centro. Que en la pausa mover el ratón no gire la cámara y que clics, rueda y teclas 1–9 no rompan, pongan ni cambien la hotbar. Que ESC otra vez y *Volver al juego* vuelvan sin salto de cámara, y que mantener ESC apretado no abra y cierre la pausa varias veces. Que *Salir al menú* vuelva al menú y se pueda entrar y salir varias veces sin que se trabe; en el Administrador de tareas, que la memoria no suba cada vez (puede subir las primeras veces y después quedar pareja). Que la pausa se abra sin un tirón notable (la primera de cada sesión puede tardar un poco más). Que cerrar la ventana en la pausa termine el programa. |
+| 5. Pausa y volver al menú | hecha y probada en Windows | `a93fa50` | Nada. El usuario lo probó el 2026-09-24 y todo funciona bien: ESC abre y cierra la pausa, el fondo desenfocado con la capa oscura, los botones *Volver al juego* y *Salir al menú*, y entrar y salir del mundo varias veces. |
 | 6. Crear mundo con semilla (opcional) | pendiente | | |
 
 ## La idea
