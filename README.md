@@ -27,14 +27,16 @@ Clon educativo de Minecraft desarrollado en Java usando LWJGL 3, OpenGL y JOML. 
 
 La hotbar contiene seis bloques seleccionables:
 
-1. Pasto
-2. Tierra
-3. Piedra
-4. Roca
+1. Piedra
+2. Roca madre
+3. Tierra
+4. Pasto
 5. Tronco
-6. Madera
+6. Hojas
 
-El mundo también utiliza roca madre, agua, nubes, arena, pizarra profunda, carbón y hierro durante la generación procedural.
+El mundo también utiliza agua, nubes, arena, cactus, pizarra profunda, carbón y hierro durante la generación procedural.
+
+Los IDs de todos los bloques están en `world/Block.java` (en el mismo orden que `terrain_atlas.png`) y la lista de la hotbar en `config/Constants.java` (`BLOQUES_HOTBAR`).
 
 ## Controles
 
@@ -79,30 +81,34 @@ Compila el proyecto con Maven:
 mvn clean package
 ```
 
-Después, ejecuta la clase `Main.Launcher` desde tu IDE como una aplicación Java. Ejecuta el proyecto desde la carpeta raíz para que pueda encontrar los shaders y la textura en `src/main/resources`.
+Después, ejecuta la clase `com.minejava.Main.Launcher` desde tu IDE como una aplicación Java. Los shaders y la textura se cargan desde el classpath, así que no importa desde qué carpeta se ejecute.
 
 ## Estructura del proyecto
 
 ```text
-src/main/java/
-├── Main.java                 # Inicialización y ciclo principal del juego
-├── core/
-│   ├── Biome.java            # Definición de biomas
-│   ├── BiomeProvider.java    # Selección de biomas
-│   ├── Camera.java           # Cámara en primera persona
-│   ├── Chunk.java            # Datos y mallas de un chunk
-│   ├── ChunkMeshBuilder.java # Construcción de geometría voxel
-│   ├── Hud.java              # Hotbar y mira
-│   ├── Input.java            # Teclado y ratón
-│   ├── PlayerController.java # Movimiento y colisiones
-│   ├── ShaderProgram.java    # Carga y gestión de shaders
-│   ├── Texture.java          # Carga del atlas de texturas
-│   ├── World.java            # Chunks, renderizado e interacción
-│   └── WorldGenerator.java  # Generación procedural del terreno
-└── utils/
-    ├── BlockType.java       # Tipos de bloque de la hotbar
-    ├── Constants.java       # Configuración general
-    └── PerlinNoise.java     # Ruido para la generación del mundo
+src/main/java/com/minejava/
+├── Main.java                     # Inicialización y ciclo principal del juego
+├── render/
+│   ├── ChunkMeshBuilder.java     # Construcción de geometría voxel
+│   ├── ShaderProgram.java        # Carga y gestión de shaders
+│   └── Texture.java              # Carga del atlas de texturas
+├── world/
+│   ├── Block.java                # IDs de todos los bloques
+│   ├── Chunk.java                # Datos y mallas de un chunk
+│   ├── World.java                # Chunks, renderizado e interacción
+│   └── gen/
+│       ├── Biome.java            # Definición de biomas
+│       ├── BiomeProvider.java    # Selección de biomas
+│       ├── PerlinNoise.java      # Ruido para la generación del mundo
+│       └── WorldGenerator.java   # Generación procedural del terreno
+├── player/
+│   ├── Camera.java               # Cámara en primera persona
+│   ├── Input.java                # Teclado y ratón
+│   └── PlayerController.java     # Movimiento y colisiones
+├── ui/
+│   └── Hud.java                  # Hotbar y mira
+└── config/
+    └── Constants.java            # Configuración general y bloques de la hotbar
 
 src/main/resources/
 ├── shaders/                 # Vertex shader y fragment shader

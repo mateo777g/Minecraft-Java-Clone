@@ -1,7 +1,9 @@
 PLAN DE REESTRUCTURACIÓN DEL PROYECTO
 =====================================
 
-Estado: pendiente (guardado para después, todavía no se aplica).
+Estado: pasos 1 a 7 aplicados. Del paso 8, "mvn clean compile" ya pasa sin
+errores; falta correr el juego (en Windows) para confirmar que el terreno,
+la hotbar y poner/romper bloques siguen funcionando igual.
 
 
 1. PROBLEMAS DE LA ESTRUCTURA ACTUAL
