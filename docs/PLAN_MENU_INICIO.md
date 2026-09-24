@@ -2,6 +2,26 @@
 
 **Estado:** pendiente. Es el siguiente paso ahora que el proyecto está organizado (ver `PLAN_REESTRUCTURACION.txt`).
 
+## Cómo trabajamos: una fase por conversación y `/clear` entre fases
+
+- Cada fase se hace en su propia conversación. Al terminarla: el proyecto compila, se actualiza la tabla de abajo, se hace commit y push, y **el usuario hace `/clear`** antes de pedir la siguiente.
+- ¿Por qué? Para aprovechar mejor los créditos: cada mensaje vuelve a enviar toda la conversación, así que mientras más larga es, más cuesta cada mensaje. Con `/clear` la siguiente fase empieza limpia.
+- No se pierde nada porque todo lo necesario está en el repo: este archivo, `ARQUITECTURA.md` y `CLAUDE.md` (que Claude lee solo al empezar).
+- Para arrancar una fase basta con algo como: *"Empieza la fase 2 del menú (docs/PLAN_MENU_INICIO.md)"*.
+
+## Estado de las fases
+
+Antes de la fase 1 conviene abrir el juego en Windows desde la rama `claude/folder-redistribution-feedback-axvqj2` y confirmar que la reestructuración no rompió nada (paso 8 de `PLAN_REESTRUCTURACION.txt`).
+
+| Fase | Estado | Commit | Qué falta probar en Windows |
+| --- | --- | --- | --- |
+| 1. Sacar la partida de `Main` | pendiente | | |
+| 2. Estados y un menú mínimo | pendiente | | |
+| 3. Texto | pendiente | | |
+| 4. Pantalla de "Generando mundo…" | pendiente | | |
+| 5. Pausa y volver al menú | pendiente | | |
+| 6. Crear mundo con semilla (opcional) | pendiente | | |
+
 ## La idea
 
 Hoy, al abrir el juego, apareces directamente en el mundo. La idea es que primero salga un menú de inicio al estilo de Minecraft: el título del juego y botones como **Un jugador** y **Salir**. Al darle a *Un jugador* se crea el mundo y empieza la partida que ya tenemos.
