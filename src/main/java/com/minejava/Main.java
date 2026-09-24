@@ -1,3 +1,5 @@
+package com.minejava;
+
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
@@ -9,14 +11,14 @@ import org.joml.Vector3f;
 
 import java.nio.FloatBuffer;
 
-import utils.Constants;
-import core.PlayerController;
-import core.Camera;
-import core.ShaderProgram;
-import core.Texture;
-import core.Hud;
-import core.World; 
-import core.Input; 
+import com.minejava.config.Constants;
+import com.minejava.player.PlayerController;
+import com.minejava.player.Camera;
+import com.minejava.render.ShaderProgram;
+import com.minejava.render.Texture;
+import com.minejava.ui.Hud;
+import com.minejava.world.World;
+import com.minejava.player.Input;
 
 public class Main {
 

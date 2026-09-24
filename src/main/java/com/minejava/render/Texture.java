@@ -1,4 +1,4 @@
-package core;
+package com.minejava.render;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;

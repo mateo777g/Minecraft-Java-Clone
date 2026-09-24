@@ -1,4 +1,4 @@
-package core;
+package com.minejava.world;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -7,6 +7,9 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.FloatBuffer;
+
+import com.minejava.render.ChunkMeshBuilder;
+import com.minejava.world.gen.WorldGenerator;
 
 public class Chunk {
     

@@ -1,4 +1,4 @@
-package core;
+package com.minejava.render;
 
 import org.lwjgl.opengl.GL20;
 import java.nio.file.Files;

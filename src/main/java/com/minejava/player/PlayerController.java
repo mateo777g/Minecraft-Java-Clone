@@ -1,7 +1,9 @@
-package core;
+package com.minejava.player;
 
 import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
+
+import com.minejava.world.World;
 
 public class PlayerController {
     

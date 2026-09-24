@@ -1,4 +1,4 @@
-package utils;
+package com.minejava.world;
 
 public enum BlockType {
     PASTO,

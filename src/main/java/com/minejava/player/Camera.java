@@ -1,4 +1,4 @@
-package core;
+package com.minejava.player;
 
 import org.joml.Matrix4f;
 import org.joml.Vector3f;

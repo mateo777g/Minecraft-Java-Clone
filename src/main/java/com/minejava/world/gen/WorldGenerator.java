@@ -1,4 +1,6 @@
-package core;
+package com.minejava.world.gen;
+
+import com.minejava.world.Chunk;
 
 public class WorldGenerator {
 
@@ -35,15 +37,15 @@ public class WorldGenerator {
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 
                 Biome biome = BiomeProvider.getBiome(globalX, globalZ);
-                float ruidoBiomaPuro = utils.PerlinNoise.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
+                float ruidoBiomaPuro = PerlinNoise.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
                 
-                float distorsion = (utils.PerlinNoise.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
+                float distorsion = (PerlinNoise.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
                 float ruidoBioma = ruidoBiomaPuro + distorsion; 
                 
-                float ruidoBase = utils.PerlinNoise.getNoise(globalX * 0.02f, globalZ * 0.02f); 
+                float ruidoBase = PerlinNoise.getNoise(globalX * 0.02f, globalZ * 0.02f); 
                 int alturaOriginal = (int)(ruidoBase * 20) + 74; 
 
-                float ruidoAgua = utils.PerlinNoise.getNoise(globalX * 0.16f, globalZ * 0.16f);
+                float ruidoAgua = PerlinNoise.getNoise(globalX * 0.16f, globalZ * 0.16f);
                 float distanciaAlCanal = Math.abs(ruidoAgua - 0.5f); 
 
                 int alturaBase = alturaOriginal;
@@ -62,11 +64,11 @@ public class WorldGenerator {
 
                 if (esCuerpoAgua) {
                     float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
-                    float ruidoRugoso = utils.PerlinNoise.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
+                    float ruidoRugoso = PerlinNoise.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
                     columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
                 }
 
-                float ruidoOceanoProfundo = utils.PerlinNoise.getNoise(globalX * 0.04f, globalZ * 0.04f);
+                float ruidoOceanoProfundo = PerlinNoise.getNoise(globalX * 0.04f, globalZ * 0.04f);
                 int alturaOceano = 46 + (int)(ruidoOceanoProfundo * 14); 
 
                 if (ruidoBioma < 0.52f) {
@@ -130,17 +132,17 @@ public class WorldGenerator {
                 float globalZ = z + (chunkZ * Chunk.CHUNK_SIZE);
                 
                 Biome biome = BiomeProvider.getBiome(globalX, globalZ);
-                float ruidoBiomaPuro = utils.PerlinNoise.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
-                float distorsion = (utils.PerlinNoise.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
+                float ruidoBiomaPuro = PerlinNoise.getNoise((globalX + 8000f) * 0.012f, (globalZ + 8000f) * 0.012f);
+                float distorsion = (PerlinNoise.getNoise(globalX * 0.1f, globalZ * 0.1f) - 0.5f) * 0.1f;
                 float ruidoBioma = ruidoBiomaPuro + distorsion; 
 
-                float ruidoAgua = utils.PerlinNoise.getNoise(globalX * 0.16f, globalZ * 0.16f);
+                float ruidoAgua = PerlinNoise.getNoise(globalX * 0.16f, globalZ * 0.16f);
                 float distanciaAlCanal = Math.abs(ruidoAgua - 0.5f); 
                 
                 if (distanciaAlCanal < 0.04f && ruidoBioma >= 0.50f) {
                     int alturaBase = 72; 
                     float factorPicada = (0.04f - distanciaAlCanal) / 0.04f; 
-                    float ruidoRugoso = utils.PerlinNoise.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
+                    float ruidoRugoso = PerlinNoise.getNoise(globalX * 0.3f, globalZ * 0.3f) * 2.0f;
                     int columnHeight = alturaBase - (int)(factorPicada * 8) + (int)ruidoRugoso;
                     boolean usarArena = (columnHeight <= nivelAgua + 1);
                     
@@ -175,7 +177,7 @@ public class WorldGenerator {
                 int celdaZ = (int) Math.floor((double) globalZ / escalaNube);
                 double pseudoRuido = Math.sin(celdaX * 12.9898 + celdaZ * 78.233) * 43758.5453;
                 pseudoRuido = pseudoRuido - Math.floor(pseudoRuido);
-                float controlDensidad = utils.PerlinNoise.getNoise(celdaX * 0.05f, celdaZ * 0.05f);
+                float controlDensidad = PerlinNoise.getNoise(celdaX * 0.05f, celdaZ * 0.05f);
                 double umbralRequerido = 0.75 - (controlDensidad * 0.38);
                 
                 if (pseudoRuido > umbralRequerido && controlDensidad > -0.15f) {

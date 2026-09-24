@@ -1,4 +1,4 @@
-package utils;
+package com.minejava.world.gen;
 
 import java.util.Random;
 

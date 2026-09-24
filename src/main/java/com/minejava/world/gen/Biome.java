@@ -1,4 +1,4 @@
-package core;
+package com.minejava.world.gen;
 
 public enum Biome {
     PLAINS(3, 2, true),    // ID Pasto, ID Tierra, Árboles Sí

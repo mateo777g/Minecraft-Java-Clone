@@ -1,6 +1,8 @@
-package utils;
+package com.minejava.config;
 
 import org.joml.Vector3f;
+
+import com.minejava.world.BlockType;
 
 public class Constants {
     // Configuraciones de pantalla

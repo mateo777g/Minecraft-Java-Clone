@@ -1,8 +1,10 @@
-package core;
+package com.minejava.player;
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCursorPosCallback;
-import utils.Constants;
+
+import com.minejava.config.Constants;
+import com.minejava.world.World;
 
 public class Input {
 

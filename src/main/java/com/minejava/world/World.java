@@ -1,4 +1,4 @@
-package core;
+package com.minejava.world;
 
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
@@ -9,6 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import com.minejava.player.Camera;
+import com.minejava.player.PlayerController;
 
 public class World {
     private int renderDistance;

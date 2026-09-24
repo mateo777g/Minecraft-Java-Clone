@@ -1,10 +1,13 @@
-package core;
+package com.minejava.render;
 
 
 
 import java.util.ArrayList;
 
 import java.util.List;
+
+import com.minejava.world.Chunk;
+import com.minejava.world.World;
 
 
 

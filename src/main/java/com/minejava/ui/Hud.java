@@ -1,4 +1,4 @@
-package core;
+package com.minejava.ui;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
@@ -8,7 +8,10 @@ import org.lwjgl.system.MemoryUtil;
 import org.joml.Matrix4f;
 
 import java.nio.FloatBuffer;
-import utils.Constants;
+
+import com.minejava.config.Constants;
+import com.minejava.render.ShaderProgram;
+import com.minejava.render.Texture;
 
 public class Hud {
     
