@@ -1,0 +1,100 @@
+PLAN DE REESTRUCTURACIÓN DEL PROYECTO
+=====================================
+
+Estado: pendiente (guardado para después, todavía no se aplica).
+
+
+1. PROBLEMAS DE LA ESTRUCTURA ACTUAL
+------------------------------------
+
+- core/ es un cajón de sastre: tiene 13 de las 17 clases y mezcla render,
+  mundo, generación de terreno, jugador, input y HUD.
+- utils/ no contiene utilidades: Constants es configuración y BlockType es
+  parte del mundo. La única utilidad real es PerlinNoise, y esa pertenece a
+  la generación de terreno.
+- No hay paquete raíz: el pom.xml usa groupId "com.minejava", pero los
+  paquetes se llaman "core" y "utils", y Main.java está en el paquete por
+  defecto (sin "package").
+
+
+2. ESTRUCTURA PROPUESTA
+-----------------------
+
+src/main/java/com/minejava/
+├── Main.java
+├── render/    ShaderProgram, Texture, ChunkMeshBuilder
+├── world/     World, Chunk, Block (todos los IDs de bloque en un solo lugar)
+│   └── gen/   WorldGenerator, Biome, BiomeProvider, PerlinNoise
+├── player/    PlayerController, Camera, Input
+├── ui/        Hud
+└── config/    Constants
+
+Movimiento de archivos:
+
+  Main.java                   -> com/minejava/Main.java
+  core/ShaderProgram.java     -> com/minejava/render/ShaderProgram.java
+  core/Texture.java           -> com/minejava/render/Texture.java
+  core/ChunkMeshBuilder.java  -> com/minejava/render/ChunkMeshBuilder.java
+  core/World.java             -> com/minejava/world/World.java
+  core/Chunk.java             -> com/minejava/world/Chunk.java
+  utils/BlockType.java        -> com/minejava/world/Block.java (rehecho, ver paso 4)
+  core/WorldGenerator.java    -> com/minejava/world/gen/WorldGenerator.java
+  core/Biome.java             -> com/minejava/world/gen/Biome.java
+  core/BiomeProvider.java     -> com/minejava/world/gen/BiomeProvider.java
+  utils/PerlinNoise.java      -> com/minejava/world/gen/PerlinNoise.java
+  core/PlayerController.java  -> com/minejava/player/PlayerController.java
+  core/Camera.java            -> com/minejava/player/Camera.java
+  core/Input.java             -> com/minejava/player/Input.java
+  core/Hud.java               -> com/minejava/ui/Hud.java
+  utils/Constants.java        -> com/minejava/config/Constants.java
+  core/BlockMesh.java         -> eliminar (no se usa en ningún lado)
+
+
+3. PASOS
+--------
+
+Paso 1. Mover los archivos (usar "git mv" para conservar el historial).
+
+Paso 2. Actualizar la línea "package" y los "import" de cada archivo.
+        Cambiar también las referencias completas como
+        "utils.PerlinNoise.getNoise(...)" en WorldGenerator y BiomeProvider.
+
+Paso 3. Unificar CHUNK_SIZE.
+        Hoy Constants.CHUNK_SIZE = 16 y Chunk.CHUNK_SIZE = 48.
+        Main.java (líneas 108-109) usa el de 16 para detectar cambio de chunk,
+        mientras que World usa el de 48, así que actualizarMundo() se llama
+        unas 3 veces más seguido de lo necesario.
+        -> Dejar un solo valor (48) y que Main use Chunk.CHUNK_SIZE.
+
+Paso 4. Centralizar los IDs de bloque en world/Block.java.
+        Hoy están regados por todo el código:
+          - WorldGenerator tiene sus propias constantes privadas (STONE = 0, ...).
+          - World y ChunkMeshBuilder usan 15 (agua) y 16 (nube) escritos a mano.
+          - Biome usa 3, 2 y 14 escritos a mano.
+          - El enum BlockType no se usa en ningún lado y su orden no cuadra
+            (dice que el 0 es PASTO, WorldGenerator dice que el 0 es STONE).
+        -> Crear una sola clase con todos los IDs, revisar contra
+           terrain_atlas.png cuál es el orden correcto y reemplazar los
+           números mágicos en todos los archivos.
+
+Paso 5. Limpiar código muerto.
+          - BlockMesh.java no se usa.
+          - Constants.ALTURA_MINIMA no se usa.
+          - Constants.BLOQUES_HOTBAR no se usa, mientras que Input tiene el 6
+            y los slots 0..5 escritos a mano.
+        -> Borrar lo que sobra o hacer que Input use la lista de la hotbar.
+
+Paso 6. Cargar los recursos desde el classpath.
+        Main.java (líneas 66-70) usa rutas "src/main/resources/..." que solo
+        funcionan si se ejecuta desde la raíz del repo; empaquetado en .jar no
+        encuentra los archivos.
+        -> ShaderProgram.readFile y Texture deben leer con getResourceAsStream
+           (para la textura: leer los bytes a un ByteBuffer y usar
+           stbi_load_from_memory).
+
+Paso 7. Actualizar el README: el árbol de carpetas y la clase a ejecutar
+        (pasaría de "Main.Launcher" a "com.minejava.Main.Launcher").
+
+Paso 8. Verificar: "mvn clean compile" sin errores y correr el juego para
+        confirmar que el terreno, la hotbar y poner/romper bloques siguen
+        funcionando igual.
