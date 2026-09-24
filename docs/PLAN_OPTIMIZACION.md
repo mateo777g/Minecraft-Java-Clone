@@ -18,7 +18,7 @@ Igual que con el menú: una fase por conversación y `/clear` entre fases (ver `
 
 | Fase | Estado | Commit | Medición (antes → después) | Qué falta probar en Windows |
 | --- | --- | --- | --- | --- |
-| 1. Medir | hecha (compila; medida aquí y en el juego con OpenGL por software) | | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". | Correr el juego con la semilla 12345, caminar ~1 minuto en línea recta y pegar la salida de la consola (ver "Prueba en Windows"). |
+| 1. Medir | hecha (compila; medida aquí y en el juego con OpenGL por software) | `d264a19` | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". | Correr el juego con la semilla 12345, caminar ~1 minuto en línea recta y pegar la salida de la consola (ver "Prueba en Windows"). |
 | 2. Mallas sin basura (`Float` y vecinos) | pendiente | | | |
 | 3. Aliviar el hilo principal | pendiente | | | |
 | 4. Hilos generadores | pendiente | | | |
