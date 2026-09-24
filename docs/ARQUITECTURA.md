@@ -9,6 +9,7 @@ Todo el código vive en `src/main/java/com/minejava/`:
 ```text
 com/minejava/
 ├── Main.java          Punto de entrada: ventana, OpenGL y ciclo principal
+├── Partida.java       Mundo, jugador y cámara de una partida
 ├── render/            Todo lo que habla con la GPU
 ├── world/             Datos del mundo: chunks, bloques, interacción
 │   └── gen/           Generación procedural del terreno
@@ -19,7 +20,8 @@ com/minejava/
 
 | Paquete | Clase | Qué hace |
 | --- | --- | --- |
-| `com.minejava` | `Main` | Crea la ventana y el contexto de OpenGL, carga shaders y textura, crea el mundo y corre el ciclo del juego. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `Main` | Lo que dura todo el programa: crea la ventana y el contexto de OpenGL, carga shaders y textura, crea la `Partida` y corre el ciclo del juego. `Main.Launcher` tiene el `main()`. |
+| `com.minejava` | `Partida` | Lo que pertenece a un mundo: el `World`, el `PlayerController` y la `Camera`. Calcula el spawn, activa `Input`, y en cada frame mueve al jugador, carga chunks y dibuja el mundo y el HUD. |
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
 | `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). |
 | `render` | `ChunkMeshBuilder` | Convierte los bloques de un chunk en una lista de vértices, dibujando solo las caras visibles. |
@@ -54,16 +56,22 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 
 1. Inicializa GLFW y crea la ventana de 1280 × 720 con V-Sync (`glfwSwapInterval(1)`).
 2. Crea el contexto de OpenGL y pone el color del cielo (`glClearColor`).
-3. Crea el `PlayerController` y la `Camera`.
-4. Compila los shaders y carga `terrain_atlas.png`.
-5. Crea el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0).
-6. Busca la altura de la superficie en (0, 0) y pone al jugador encima, en (0.5, altura, 0.5).
-7. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
-8. Llama a `Input.init()`, que registra los callbacks y captura el cursor.
+3. Compila los shaders y carga `terrain_atlas.png`.
+4. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
+5. Llama a `iniciarPartida()`, que hace `new Partida(window)`. Por ahora se entra directo al mundo; más adelante lo hará el botón del menú.
+
+El constructor de `Partida` hace el resto:
+
+1. Crea el `PlayerController` y la `Camera`.
+2. Crea el `World` con una distancia de render de 4 chunks. Eso pide generar 9 × 9 = 81 chunks alrededor de (0, 0).
+3. Busca la altura de la superficie en (0, 0) y pone al jugador encima, en (0.5, altura, 0.5).
+4. Llama a `Input.init()`, que registra los callbacks y captura el cursor.
+
+Al cerrar, `Main.cleanup()` llama a `partida.cleanup()` (que libera el mundo) y después libera el shader, la textura y la ventana.
 
 ## El ciclo de cada frame
 
-`loop()` repite esto hasta que se cierra la ventana:
+`Main.loop()` repite esto hasta que se cierra la ventana. Los pasos 2 a 6 están en `Partida.update()` y los pasos 7 y 8 en `Partida.render()`:
 
 1. Limpia la pantalla.
 2. `Input.update()`: revisa las teclas 1–9 de la hotbar.
@@ -184,7 +192,7 @@ El atlas de 4 × 4 ya está lleno. Para un bloque nuevo hay que:
 | Resolución y título de la ventana | `Constants.SCREEN_WIDTH`, `SCREEN_HEIGHT`, `WINDOW_TITLE` |
 | Sensibilidad del ratón | `Constants.MOUSE_SENSITIVITY` |
 | Bloques de la hotbar | `Constants.BLOQUES_HOTBAR` |
-| Distancia de render (en chunks) | `Main.renderDistance` (4 → 9 × 9 chunks) |
+| Distancia de render (en chunks) | `Partida.RENDER_DISTANCE` (4 → 9 × 9 chunks) |
 | Tamaño y altura del chunk | `Chunk.CHUNK_SIZE` (48) y `Chunk.CHUNK_HEIGHT` (200) |
 | Nivel del agua | `WorldGenerator.generateTerrain()`, `nivelAgua = 68` |
 | Semilla del terreno | `PerlinNoise`, `new Random(12345)` |
@@ -210,4 +218,4 @@ Estas salen de leer el código y no las he probado en el juego. Conviene confirm
 3. **La ventana se puede redimensionar**, pero no se actualiza `glViewport`, la proyección ni las medidas del HUD (que usan `SCREEN_WIDTH` y `SCREEN_HEIGHT` fijos).
 4. **La velocidad depende de los FPS**, porque el movimiento se suma por frame y no por tiempo transcurrido.
 5. **`Hud.cleanup()` nunca se llama.** Al cerrar el juego no importa, pero sí importará cuando se pueda salir al menú y volver a entrar.
-6. **El spawn no espera a que el terreno exista.** `Main.init()` calcula la altura de la superficie justo después de `new World()`, mientras el chunk (0, 0) todavía se está generando en otro hilo. Si aún no terminó, ese chunk está lleno de ceros (piedra), la "superficie" sale en y = 200 y el jugador aparece muy arriba, encima de las nubes. El menú de inicio es buen momento para arreglarlo con una pantalla de "Generando mundo…" (ver `PLAN_MENU_INICIO.md`).
+6. **El spawn no espera a que el terreno exista.** El constructor de `Partida` calcula la altura de la superficie justo después de `new World()`, mientras el chunk (0, 0) todavía se está generando en otro hilo. Si aún no terminó, ese chunk está lleno de ceros (piedra), la "superficie" sale en y = 200 y el jugador aparece muy arriba, encima de las nubes. El menú de inicio es buen momento para arreglarlo con una pantalla de "Generando mundo…" (ver `PLAN_MENU_INICIO.md`).

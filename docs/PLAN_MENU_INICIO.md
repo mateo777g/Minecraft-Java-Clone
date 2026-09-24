@@ -53,7 +53,7 @@ Main.run()
 
 | Para el menú se necesita… | …y hoy pasa esto |
 | --- | --- |
-| Mostrar algo antes del mundo | `Main.init()` crea el mundo apenas arranca. |
+| Mostrar algo antes del mundo | `Main.init()` crea la `Partida` (y con ella el mundo) apenas arranca. |
 | Un cursor visible para hacer clic en los botones | `Input.init()` captura el cursor siempre. |
 | Que los clics en el menú no rompan bloques | Los callbacks de `Input` siempre actúan sobre el mundo. |
 | Texto en los botones | No hay forma de dibujar texto. |

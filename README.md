@@ -88,6 +88,7 @@ Después, ejecuta la clase `com.minejava.Main.Launcher` desde tu IDE como una ap
 ```text
 src/main/java/com/minejava/
 ├── Main.java                     # Inicialización y ciclo principal del juego
+├── Partida.java                  # Mundo, jugador y cámara de una partida
 ├── render/
 │   ├── ChunkMeshBuilder.java     # Construcción de geometría voxel
 │   ├── ShaderProgram.java        # Carga y gestión de shaders
