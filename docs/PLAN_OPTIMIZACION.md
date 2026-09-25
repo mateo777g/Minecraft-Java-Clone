@@ -1,6 +1,6 @@
 # Plan: optimización (tirones al cargar chunks)
 
-**Estado:** en curso. Las fases 1 (medir) y 2 (mallas sin basura) están hechas y medidas aquí. La fase 1 ya está medida en Windows; la prueba de la fase 2 en Windows corrió sin la fase 2 y hay que repetirla antes de empezar la fase 3. Viene después del menú de inicio, que ya está terminado y probado (ver `PLAN_MENU_INICIO.md`).
+**Estado:** en pausa (2026-09-25), a pedido del usuario, para arreglar primero unas cosas del agua y del jugador. Las fases 1 (medir) y 2 (mallas sin basura, el arreglo grande) están hechas y medidas aquí. Al retomar: primero repetir en Windows la prueba de la fase 2 con el código actualizado (`git pull`), porque la que se hizo corrió sin la fase 2. Si ya no hay tirones, las fases 3 y 4 pueden no hacer falta.
 
 ## El problema
 
