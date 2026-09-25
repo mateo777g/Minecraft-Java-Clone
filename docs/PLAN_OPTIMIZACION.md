@@ -18,7 +18,7 @@ Igual que con el menú: una fase por conversación y `/clear` entre fases (ver `
 
 | Fase | Estado | Commit | Medición (antes → después) | Qué falta probar en Windows |
 | --- | --- | --- | --- | --- |
-| 1. Medir | hecha (compila; medida aquí y en el juego con OpenGL por software) | `d264a19` | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". | Correr el juego con la semilla 12345, caminar ~1 minuto en línea recta y pegar la salida de la consola (ver "Prueba en Windows"). |
+| 1. Medir | hecha y medida en Windows | `d264a19` | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". En Windows (antes de la fase 2): 40 frames lentos en 1 minuto (el peor, 186 ms), 37 de ellos con pausa de GC; 60 pausas de GC que suman 3,2 s; 78–133 MB reservados por chunk. | Nada. El usuario lo midió el 2026-09-25 (ver "Mediciones"). |
 | 2. Mallas sin basura (`Float` y vecinos) | hecha (compila; medida aquí y en el juego con OpenGL por software; "El mundo no cambió") | `48d2024` | Aquí: la malla opaca reserva **141 → 4,1 MB** y tarda 357 → 6–15 ms; cruzar un borde reserva **904 → 58 MB**, el GC pasa de 378 a **4–12 ms** por borde y la pausa más larga de 354 a **17 ms** (59 ms en una corrida). `getBlockGlobal()`: 160 → 21–37 ns. Ver "Mediciones". | La misma prueba de la fase 1 (semilla 12345, ~1 minuto en línea recta, pegar la salida). Debería haber muy pocas pausas de GC al cruzar bordes y `armados` con unos 5–7 MB por chunk. Mirar también `mundo` en los frames que piden chunks (ver "Fase 2, el juego en Linux"). |
 | 3. Aliviar el hilo principal | pendiente | | | |
 | 4. Hilos generadores | pendiente | | | |
@@ -119,6 +119,21 @@ De dónde salen los 141 MB de la malla opaca (medido con un programa aparte en e
 ### Fase 1, el juego en Linux con OpenGL por software
 
 Con Xvfb y Mesa, semilla 12345, esperando la carga y caminando 15 s. No sirve para los FPS (dibujar tarda 250–400 ms por frame sin GPU), pero confirma que el medidor funciona y muestra frames con **pausas de GC de 70–436 ms**, `mundo` de 8,5 ms al pedir 9 chunks y subir una malla en 2–47 ms.
+
+### Fase 1, en Windows (antes de la fase 2)
+
+La prueba de "Prueba en Windows", hecha por el usuario el 2026-09-25 con el código de la fase 1: semilla 12345, 60 s de juego. Su equipo: 32 procesadores (31 hilos generadores), Java 21, G1, heap máx 8 GB.
+
+| Qué | Resultado |
+| --- | --- |
+| FPS | 226 en promedio, 4,4 ms por frame: dibujar no es el problema (render 0,1–0,2 ms) |
+| Frames lentos (>25 ms) | **40**, el peor de **186 ms**. **37 de los 40 coinciden con una pausa de GC**; los otros 3 son subidas de mallas de 24–29 ms en la carga inicial |
+| GC | **60 pausas, 3,2 s en total**; las peores de 130–173 ms |
+| Chunks al caminar | malla de 109–187 ms en promedio y **78–108 MB reservados por chunk**; terreno de 9–38 ms |
+| Carga inicial (81 chunks a la vez) | malla de 845 ms en promedio, 133 MB por chunk, el peor de 2,9 s |
+| Hilo principal | reservó 25–114 MB cada 5 s; una vez `mundo` tardó 140 ms al pedir 9 chunks, con una pausa de GC de 135 ms en ese frame |
+
+El usuario notó que algunas cargas de chunks van fluidas y otras dan un tirón: cuadra con el GC, que solo pausa cuando se llena la memoria nueva, no en cada borde.
 
 ### Fase 2, aquí (mismo equipo)
 
