@@ -41,6 +41,7 @@ public class ChunkMeshBuilder {
 
     // Los chunks de al lado se buscan una sola vez, no una vez por bloque. Como hacía getBlockGlobal():
     // si no está en el mapa, es aire; si está, se lee su arreglo aunque todavía no tenga terreno (ceros = piedra).
+    // En el juego no pasa ninguna de las dos: World pide la malla recién cuando los 4 ya tienen su terreno.
     private ChunkMeshBuilder(World world, int[][][] blocks, int chunkX, int chunkZ) {
         this.blocks = blocks;
         this.oeste = bloquesDe(world.getChunk(chunkX - 1, chunkZ));

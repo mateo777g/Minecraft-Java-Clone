@@ -18,7 +18,8 @@ import com.minejava.config.Constants;
 //  - cada frame que tarda más de FRAME_LENTO_MS, con lo que tardó cada parte y si hubo GC en ese frame
 //  - cada RESUMEN_CADA_MS de juego, un resumen: FPS, el peor frame, los frames lentos, el GC y los chunks
 //  - al terminar la partida (salir al menú o cerrar), el total
-// Todo lo usa el hilo principal, salvo bytesReservadosHilo() y chunkArmado(), que llaman los hilos generadores.
+// Todo lo usa el hilo principal, salvo bytesReservadosHilo(), terrenoGenerado() y mallaArmada(), que llaman los
+// hilos generadores.
 // Lo que imprime va sin tildes ni ñ: según cómo se abra el juego, la consola de Windows las mostraría mal.
 public final class MedidorRendimiento {
 
@@ -85,12 +86,14 @@ public final class MedidorRendimiento {
 
     // ---- Lo que escriben los hilos generadores (con el candado) ----
     private static final Object CANDADO = new Object();
-    private static int armados;
     private static int terrenos;
     private static long nanosTerreno;
+    private static long maxNanosTerreno;
+    private static long bytesTerreno;
+    private static int mallas;
     private static long nanosMallas;
-    private static long maxNanosArmado;
-    private static long bytesArmado;
+    private static long maxNanosMalla;
+    private static long bytesMallas;
 
     // ---- Total de la partida ----
     private static long totalFrames;
@@ -199,7 +202,7 @@ public final class MedidorRendimiento {
     // Lo que avisan World y Chunk
     // ========================================================================
 
-    // actualizarMundo() creó estos chunks y los mandó a generar (hilo principal)
+    // actualizarMundo() creó estos chunks y mandó a generar su terreno (hilo principal)
     public static void chunksPedidos(int cantidad) {
         if (!Constants.MEDIR_RENDIMIENTO) return;
         chunksPedidosFrame += cantidad;
@@ -229,18 +232,25 @@ public final class MedidorRendimiento {
         return HILOS.getCurrentThreadAllocatedBytes();
     }
 
-    // Un hilo generador terminó un chunk: el terreno (si era la primera vez) y sus dos mallas
-    public static void chunkArmado(boolean conTerreno, long nanosTerrenoChunk, long nanosMallasChunk, long bytes) {
+    // Un hilo generador terminó el terreno de un chunk: lo que tardó y lo que reservó
+    public static void terrenoGenerado(long nanos, long bytes) {
         if (!Constants.MEDIR_RENDIMIENTO) return;
         synchronized (CANDADO) {
-            armados++;
-            if (conTerreno) {
-                terrenos++;
-                nanosTerreno += nanosTerrenoChunk;
-            }
-            nanosMallas += nanosMallasChunk;
-            maxNanosArmado = Math.max(maxNanosArmado, nanosTerrenoChunk + nanosMallasChunk);
-            bytesArmado += bytes;
+            terrenos++;
+            nanosTerreno += nanos;
+            maxNanosTerreno = Math.max(maxNanosTerreno, nanos);
+            bytesTerreno += bytes;
+        }
+    }
+
+    // Un hilo generador armó las dos mallas de un chunk (la opaca y la transparente)
+    public static void mallaArmada(long nanos, long bytes) {
+        if (!Constants.MEDIR_RENDIMIENTO) return;
+        synchronized (CANDADO) {
+            mallas++;
+            nanosMallas += nanos;
+            maxNanosMalla = Math.max(maxNanosMalla, nanos);
+            bytesMallas += bytes;
         }
     }
 
@@ -289,21 +299,26 @@ public final class MedidorRendimiento {
         }
         imprimir(partes.toString());
 
-        int armadosVentana, terrenosVentana;
-        long nanosTerrenoVentana, nanosMallasVentana, maxArmadoVentana, bytesArmadoVentana;
+        int terrenosVentana, mallasVentana;
+        long nanosTerrenoVentana, maxTerrenoVentana, bytesTerrenoVentana;
+        long nanosMallasVentana, maxMallaVentana, bytesMallasVentana;
         synchronized (CANDADO) {
-            armadosVentana = armados;
             terrenosVentana = terrenos;
             nanosTerrenoVentana = nanosTerreno;
+            maxTerrenoVentana = maxNanosTerreno;
+            bytesTerrenoVentana = bytesTerreno;
+            mallasVentana = mallas;
             nanosMallasVentana = nanosMallas;
-            maxArmadoVentana = maxNanosArmado;
-            bytesArmadoVentana = bytesArmado;
-            armados = 0;
+            maxMallaVentana = maxNanosMalla;
+            bytesMallasVentana = bytesMallas;
             terrenos = 0;
             nanosTerreno = 0;
+            maxNanosTerreno = 0;
+            bytesTerreno = 0;
+            mallas = 0;
             nanosMallas = 0;
-            maxNanosArmado = 0;
-            bytesArmado = 0;
+            maxNanosMalla = 0;
+            bytesMallas = 0;
         }
 
         MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
@@ -315,17 +330,22 @@ public final class MedidorRendimiento {
                 (bytesPrincipal - bytesPrincipalInicio) / MB));
         bytesPrincipalInicio = bytesPrincipal;
 
-        StringBuilder chunks = new StringBuilder(String.format(Locale.ROOT, "  chunks: pedidos %d, armados %d", chunksPedidos, armadosVentana));
-        if (armadosVentana > 0) {
-            chunks.append(String.format(Locale.ROOT,
-                    " (prom. por chunk: terreno %.1f ms, mallas %.1f ms, %.0f MB reservados; el peor %.1f ms)",
-                    terrenosVentana > 0 ? nanosTerrenoVentana / MS / terrenosVentana : 0.0,
-                    nanosMallasVentana / MS / armadosVentana, bytesArmadoVentana / MB / armadosVentana,
-                    maxArmadoVentana / MS));
+        // El terreno se genera un anillo más allá de las mallas: al cruzar un borde son 11 terrenos y 9 mallas
+        StringBuilder chunks = new StringBuilder(String.format(Locale.ROOT, "  chunks: pedidos %d, terrenos %d", chunksPedidos, terrenosVentana));
+        if (terrenosVentana > 0) {
+            chunks.append(String.format(Locale.ROOT, " (prom. %.1f ms, %.1f MB reservados; el peor %.1f ms)",
+                    nanosTerrenoVentana / MS / terrenosVentana, bytesTerrenoVentana / MB / terrenosVentana,
+                    maxTerrenoVentana / MS));
         }
-        chunks.append(String.format(Locale.ROOT, ", subidos %d", mallasSubidas));
+        chunks.append(String.format(Locale.ROOT, ", mallas armadas %d", mallasVentana));
+        if (mallasVentana > 0) {
+            chunks.append(String.format(Locale.ROOT, " (prom. %.1f ms, %.1f MB reservados; la peor %.1f ms)",
+                    nanosMallasVentana / MS / mallasVentana, bytesMallasVentana / MB / mallasVentana,
+                    maxMallaVentana / MS));
+        }
+        chunks.append(String.format(Locale.ROOT, ", subidas %d", mallasSubidas));
         if (mallasSubidas > 0) chunks.append(String.format(Locale.ROOT, " (%.1f MB prom.)", bytesSubidos / MB / mallasSubidas));
-        chunks.append(", descartados ").append(mallasDescartadas);
+        chunks.append(", descartadas ").append(mallasDescartadas);
         imprimir(chunks.toString());
 
         totalFrames += frames;

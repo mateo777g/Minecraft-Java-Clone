@@ -1,6 +1,6 @@
 # Plan: optimización (tirones al cargar chunks)
 
-**Estado:** en pausa (2026-09-25), a pedido del usuario, para arreglar primero unas cosas del agua y del jugador (`PLAN_AGUA_JUGADOR.md`). Las fases 1 (medir) y 2 (mallas sin basura, el arreglo grande) están hechas y medidas aquí. Al retomar: primero repetir en Windows la prueba de la fase 2 con el código actualizado (`git pull`), porque la que se hizo corrió sin la fase 2. Si ya no hay tirones, las fases 3 y 4 pueden no hacer falta.
+**Estado:** en pausa (2026-09-25), a pedido del usuario, para arreglar primero unas cosas del agua y del jugador (`PLAN_AGUA_JUGADOR.md`). Las fases 1 (medir) y 2 (mallas sin basura, el arreglo grande) están hechas y medidas aquí. Al retomar: primero repetir en Windows la prueba de la fase 2 con el código actualizado (`git pull`), porque la que se hizo corrió sin la fase 2. Si ya no hay tirones, las fases 3 y 4 pueden no hacer falta. **Ojo:** la fase 1 de `PLAN_AGUA_JUGADOR.md` cambió cómo se cargan los chunks (el terreno llega un anillo más allá que las mallas: 11 terrenos y 9 mallas por borde), la línea `chunks:` del medidor (ahora dice `terrenos` y `mallas armadas` por separado, en vez de `armados`) y la parte 2 de `MedirChunks`, que ahora usa el `World` del juego.
 
 ## El problema
 
@@ -19,7 +19,7 @@ Igual que con el menú: una fase por conversación y `/clear` entre fases (ver `
 | Fase | Estado | Commit | Medición (antes → después) | Qué falta probar en Windows |
 | --- | --- | --- | --- | --- |
 | 1. Medir | hecha y medida en Windows | `d264a19` | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". En Windows (antes de la fase 2): 40 frames lentos en 1 minuto (el peor, 186 ms), 37 de ellos con pausa de GC; 60 pausas de GC que suman 3,2 s; 78–133 MB reservados por chunk. | Nada. El usuario lo midió el 2026-09-25 (ver "Mediciones"). |
-| 2. Mallas sin basura (`Float` y vecinos) | hecha (compila; medida aquí y en el juego con OpenGL por software; "El mundo no cambió") | `48d2024` | Aquí: la malla opaca reserva **141 → 4,1 MB** y tarda 357 → 6–15 ms; cruzar un borde reserva **904 → 58 MB**, el GC pasa de 378 a **4–12 ms** por borde y la pausa más larga de 354 a **17 ms** (59 ms en una corrida). `getBlockGlobal()`: 160 → 21–37 ns. Ver "Mediciones". | Repetir la prueba de la fase 1 (semilla 12345, ~1 minuto en línea recta, pegar la salida): la del 2026-09-25 corrió **sin la fase 2** (133 MB por chunk, como antes; ver "Segunda prueba en Windows"). Debería haber muy pocas pausas de GC al cruzar bordes y `armados` con unos 5–7 MB por chunk. Mirar también `mundo` en los frames que piden chunks (ver "Fase 2, el juego en Linux"). |
+| 2. Mallas sin basura (`Float` y vecinos) | hecha (compila; medida aquí y en el juego con OpenGL por software; "El mundo no cambió") | `48d2024` | Aquí: la malla opaca reserva **141 → 4,1 MB** y tarda 357 → 6–15 ms; cruzar un borde reserva **904 → 58 MB**, el GC pasa de 378 a **4–12 ms** por borde y la pausa más larga de 354 a **17 ms** (59 ms en una corrida). `getBlockGlobal()`: 160 → 21–37 ns. Ver "Mediciones". | Repetir la prueba de la fase 1 (semilla 12345, ~1 minuto en línea recta, pegar la salida): la del 2026-09-25 corrió **sin la fase 2** (133 MB por chunk, como antes; ver "Segunda prueba en Windows"). Debería haber muy pocas pausas de GC al cruzar bordes, `terrenos` con ~1,3 MB y `mallas armadas` con ~4 MB reservados cada uno. Mirar también `mundo` en los frames que piden chunks (ver "Fase 2, el juego en Linux"). |
 | 3. Aliviar el hilo principal | pendiente: antes, la prueba de la fase 2 en Windows (ver "Fase 3") | | En Windows, sin la fase 2: `mundo` 4–11 ms y `mallas` 2–11 ms por borde (ver "Segunda prueba en Windows"). | |
 | 4. Hilos generadores | pendiente | | | |
 | 5. Menos cosas que dibujar (opcional) | pendiente | | | |
@@ -58,7 +58,7 @@ La fase 2 arregló los puntos 1 y 2: la basura por chunk bajó de ~100 MB a ~6 M
 En la consola, con el prefijo `[medidor]`:
 
 - **Cada frame de 25 ms o más:** cuánto tardó cada parte, si hubo GC en ese frame (cuántas pausas y cuántos ms), y si pidió chunks o subió una malla. Como mucho 15 por resumen, para no llenar la consola.
-- **Cada 5 s de juego, un resumen:** frames, FPS, frame promedio y peor, frames lentos; promedio y máximo de cada parte; GC (pausas, ms en total y el frame con más GC), el heap y lo que reservó el hilo principal; y los chunks: pedidos, armados por los hilos generadores (con lo que tardaron el terreno y las mallas y la memoria que reservaron, en promedio), subidos a la GPU y descartados.
+- **Cada 5 s de juego, un resumen:** frames, FPS, frame promedio y peor, frames lentos; promedio y máximo de cada parte; GC (pausas, ms en total y el frame con más GC), el heap y lo que reservó el hilo principal; y los chunks: pedidos, terrenos y mallas armadas por los hilos generadores (cada uno con lo que tardó y la memoria que reservó, en promedio, y el peor), mallas subidas a la GPU y descartadas. (Hasta la fase 1 de `PLAN_AGUA_JUGADOR.md` el terreno y las mallas iban juntos, en `armados`.)
 - **Al salir al menú o cerrar el juego:** el total de la partida.
 
 ### Aquí, sin pantalla: `herramientas/MedirChunks.java`
@@ -71,7 +71,7 @@ java -cp "target/classes:$(cat target/classpath.txt)" herramientas/MedirChunks.j
 Tarda unos 25 s y tiene tres partes:
 
 1. **Un chunk en un solo hilo**, con la semilla 12345: tiempo y memoria reservada de cada paso (`new Chunk`, terreno, malla opaca y transparente), en 25 mallas alrededor de (0, 0), después de calentar la JVM.
-2. **Cruzar un borde** 5 veces: 9 chunks nuevos en `núcleos − 1` hilos que corren `Chunk.generarTerrenoAsincrono()`, como el juego. Mide cuánto tardan, la memoria, las pausas del GC y un hilo "sonda" que hace de hilo principal: se duerme 1 ms una y otra vez y anota cuánto se despierta tarde.
+2. **Cruzar un borde** 5 veces: con el `World` del juego y sus `núcleos − 1` hilos, 11 terrenos y 9 mallas nuevos por borde (desde la fase 1 de `PLAN_AGUA_JUGADOR.md`; antes, con un pool propio, 9 chunks con terreno y malla juntos). Mide cuánto tardan, la memoria, las pausas del GC y un hilo "sonda" que hace de hilo principal: se duerme 1 ms una y otra vez y anota cuánto se despierta tarde.
 3. **El mundo no cambió:** compara los bloques y las mallas de esos 25 chunks (cantidad de floats y hash) con `herramientas/referencia_mallas.txt`. Si algo cambió, dice qué chunk y qué malla, y termina con error.
 
 **Los tiempos varían mucho de una corrida a otra** (este equipo es compartido): comparar con varias corridas. **La memoria reservada sale exacta** y es el mejor número para comparar fases.
@@ -86,9 +86,9 @@ Con eso `crear los chunks` vuelve a 4–6 ms. En Windows tocar memoria nueva es 
 
 ### Prueba en Windows
 
-1. Traer los cambios de la rama (`git pull`), recompilar y abrir el juego como siempre (`com.minejava.Main.Launcher` desde el IDE). Para saber si corre el código nuevo: desde la fase 2, los resúmenes dicen unos 5–15 MB reservados por chunk en `armados`; si dicen ~100 MB, es el juego de antes de la fase 2.
+1. Traer los cambios de la rama (`git pull`), recompilar y abrir el juego como siempre (`com.minejava.Main.Launcher` desde el IDE). Para saber si corre el código nuevo: desde la fase 2, los resúmenes dicen unos 4–6 MB reservados por malla en `mallas armadas` (antes de la fase 1 de `PLAN_AGUA_JUGADOR.md`, 5–15 MB por chunk en `armados`); si dicen ~100 MB, es el juego de antes de la fase 2.
 2. *Un jugador* → escribir la semilla **12345** → *Crear mundo*. Así medimos siempre el mismo mundo.
-3. Al entrar, **no moverse unos 15 s**, hasta que un resumen diga `armados 0` y `subidos 0` (terminó de cargar el mundo).
+3. Al entrar, **no moverse unos 15 s**, hasta que un resumen diga `terrenos 0, mallas armadas 0` y `subidas 0` (terminó de cargar el mundo).
 4. **Mantener W unos 60 s** sin mover el ratón (el jugador vuela en línea recta).
 5. ESC → *Salir al menú*: imprime el total.
 6. Copiar de la consola todo desde `Semilla del mundo: 12345` hasta la línea `==== total de la partida ... ====` y pegarlo en la conversación.
@@ -232,7 +232,7 @@ Lo que se había planeado:
 
 Según lo que diga la medición en Windows:
 
-- Reservar el arreglo de bloques en el hilo generador, no en `actualizarMundo()` (hoy 4–12 ms y 17 MB en el hilo principal por cruce). Pasar a un arreglo plano (`int[]` con un índice calculado) en vez de `int[][][]` es una mejora extra, pero toca `Chunk`, `WorldGenerator` y `ChunkMeshBuilder`. Si sale muy grande, dejarlo para después. `MedirChunks` crea los chunks y genera el terreno por su cuenta: habrá que ajustarla.
+- Reservar el arreglo de bloques en el hilo generador, no en `actualizarMundo()` (4–12 ms y 17 MB en el hilo principal por cruce; desde la fase 1 de `PLAN_AGUA_JUGADOR.md` son 11 chunks por borde: 5–23 ms y 21 MB en `MedirChunks`). Pasar a un arreglo plano (`int[]` con un índice calculado) en vez de `int[][][]` es una mejora extra, pero toca `Chunk`, `WorldGenerator` y `ChunkMeshBuilder`. Si sale muy grande, dejarlo para después. `MedirChunks` crea los chunks y genera el terreno por su cuenta: habrá que ajustarla.
 - Subida a la GPU:
   - Reutilizar un solo buffer nativo en vez de reservar uno por malla.
   - Usar `GL_STATIC_DRAW`.
@@ -242,9 +242,9 @@ Según lo que diga la medición en Windows:
 
 ### Fase 4: hilos generadores
 
-- Usar `núcleos − 2` hilos (mínimo 1) con prioridad baja, para dejarle CPU al hilo principal. `MedirChunks` usa su propio pool con `núcleos − 1`, igual que `World`: cambiarlo también.
-- Saltarse los chunks que ya quedaron fuera de rango cuando les toca empezar, y no subir sus mallas.
-- Opcional: no pedir los 9 chunks de golpe, sino primero los que están en la dirección en que camina el jugador.
+- Usar `núcleos − 2` hilos (mínimo 1) con prioridad baja, para dejarle CPU al hilo principal. `MedirChunks` usa el pool del `World` (desde la fase 1 de `PLAN_AGUA_JUGADOR.md`), así que lo toma solo.
+- Saltarse los chunks que ya quedaron fuera de rango cuando les toca empezar. (Las mallas de los chunks que se alejaron ya no se suben desde la fase 1 de `PLAN_AGUA_JUGADOR.md`, y las mallas van antes que los terrenos en la cola.)
+- Opcional: no pedir los 11 chunks de golpe, sino primero los que están en la dirección en que camina el jugador.
 
 **Lista cuando:** caminar en línea recta ya no da tirones visibles.
 

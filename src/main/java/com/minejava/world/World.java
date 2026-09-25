@@ -10,8 +10,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.minejava.debug.MedidorRendimiento;
 import com.minejava.player.Camera;
@@ -19,10 +21,24 @@ import com.minejava.player.PlayerController;
 import com.minejava.world.gen.WorldGenerator;
 
 public class World {
+    // Hasta dónde se arman y se dibujan las mallas, en chunks. El terreno se genera un anillo más allá
+    // (renderDistance + 1): ese anillo no tiene malla, está para ser vecino. Así la malla de cada chunk se pide
+    // recién cuando sus 4 vecinos tienen terreno, y las caras de sus bordes salen bien a la primera.
     private int renderDistance;
     private Map<Long, Chunk> chunksActivos;
-    private ExecutorService chunkGenerators;
-    private ConcurrentLinkedQueue<Chunk> chunksListosParaGL;
+    // Hilos generadores: arman terrenos y mallas. Las mallas van primero (ver Tarea).
+    private ThreadPoolExecutor chunkGenerators;
+    // Los hilos dejan aquí los chunks que terminaron su terreno, para que el hilo principal pida las mallas
+    private final ConcurrentLinkedQueue<Chunk> terrenosListos = new ConcurrentLinkedQueue<>();
+    // ... y aquí las mallas terminadas, hasta que el hilo principal las suba a la GPU
+    private final ConcurrentLinkedQueue<Chunk.MallaArmada> mallasListas = new ConcurrentLinkedQueue<>();
+    // Tareas mandadas al pool que no terminaron. Las herramientas sin pantalla esperan a que llegue a 0.
+    private final AtomicInteger tareasEnCurso = new AtomicInteger();
+    // Número de orden de la próxima tarea (solo el hilo principal)
+    private long ordenTareas = 0;
+    // El chunk del jugador en la última llamada a actualizarMundo()
+    private int centroChunkX;
+    private int centroChunkZ;
     // Genera los chunks de este mundo con su semilla. Se crea antes de mandar tareas al pool.
     private final WorldGenerator generador;
     // Se pone en true en cleanup(). Lo leen los hilos secundarios, por eso es volatile.
@@ -32,16 +48,33 @@ public class World {
         this.renderDistance = renderDistance;
         this.generador = new WorldGenerator(semilla);
         this.chunksActivos = new ConcurrentHashMap<>();
-        this.chunksListosParaGL = new ConcurrentLinkedQueue<>();
         
         int hilosDisponibles = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
-        // Hilos "daemon": si se cierra el juego con chunks a medio generar, no impiden que el programa termine
-        this.chunkGenerators = Executors.newFixedThreadPool(hilosDisponibles, tarea -> {
-            Thread hilo = new Thread(tarea, "generador-chunks");
-            hilo.setDaemon(true);
-            return hilo;
-        });
+        // Hilos "daemon": si se cierra el juego con chunks a medio generar, no impiden que el programa termine.
+        // La cola ordena las tareas con Tarea.compareTo(): por eso se mandan con execute() y no con submit().
+        this.chunkGenerators = new ThreadPoolExecutor(hilosDisponibles, hilosDisponibles, 0L, TimeUnit.MILLISECONDS,
+                new PriorityBlockingQueue<>(), tarea -> {
+                    Thread hilo = new Thread(tarea, "generador-chunks");
+                    hilo.setDaemon(true);
+                    return hilo;
+                });
         // Todavía no pide ningún chunk: Partida busca el spawn y llama a actualizarMundo() con él
+    }
+
+    // Una tarea del pool. Las mallas van antes que los terrenos: son lo que se ve y usan terrenos que ya
+    // están hechos. Entre dos del mismo tipo va la que se mandó antes, y los terrenos se mandan del más
+    // cercano al jugador al más lejano.
+    private record Tarea(boolean esMalla, long orden, Runnable trabajo) implements Runnable, Comparable<Tarea> {
+        @Override
+        public void run() {
+            trabajo.run();
+        }
+
+        @Override
+        public int compareTo(Tarea otra) {
+            if (esMalla != otra.esMalla) return esMalla ? -1 : 1;
+            return Long.compare(orden, otra.orden);
+        }
     }
 
     public WorldGenerator getGenerador() {
@@ -70,19 +103,20 @@ public class World {
     }
 
     public void actualizarMundo(float playerX, float playerZ) {
-        int centroChunkX = Math.floorDiv(Math.round(playerX), Chunk.CHUNK_SIZE);
-        int centroChunkZ = Math.floorDiv(Math.round(playerZ), Chunk.CHUNK_SIZE);
+        centroChunkX = Math.floorDiv(Math.round(playerX), Chunk.CHUNK_SIZE);
+        centroChunkZ = Math.floorDiv(Math.round(playerZ), Chunk.CHUNK_SIZE);
+        int radioTerreno = renderDistance + 1;
 
         List<int[]> faltantes = new ArrayList<>();
-        for (int x = -renderDistance; x <= renderDistance; x++) {
-            for (int z = -renderDistance; z <= renderDistance; z++) {
+        for (int x = -radioTerreno; x <= radioTerreno; x++) {
+            for (int z = -radioTerreno; z <= radioTerreno; z++) {
                 if (!chunksActivos.containsKey(generarClave(centroChunkX + x, centroChunkZ + z))) {
                     faltantes.add(new int[] { x, z });
                 }
             }
         }
         // Los más cercanos al jugador primero: el pool los genera en el orden en que llegan, así el chunk
-        // donde aparece el jugador sale enseguida y la pantalla de "Generando mundo..." dura poco
+        // donde aparece el jugador y sus vecinos salen enseguida y la pantalla de "Generando mundo..." dura poco
         faltantes.sort(Comparator.comparingInt(d -> d[0] * d[0] + d[1] * d[1]));
         MedidorRendimiento.chunksPedidos(faltantes.size());
 
@@ -92,9 +126,10 @@ public class World {
             Chunk nuevoChunk = new Chunk(this, targetCX, targetCZ);
             chunksActivos.put(generarClave(targetCX, targetCZ), nuevoChunk);
 
-            chunkGenerators.submit(() -> {
-                nuevoChunk.generarTerrenoAsincrono(); 
-                chunksListosParaGL.add(nuevoChunk); 
+            // La malla la pide el hilo principal cuando estén los vecinos (sacarMallaParaSubir())
+            mandar(false, () -> {
+                nuevoChunk.generarTerreno();
+                terrenosListos.add(nuevoChunk);
             });
         }
 
@@ -106,23 +141,100 @@ public class World {
             int distX = Math.abs(chunk.getChunkX() - centroChunkX);
             int distZ = Math.abs(chunk.getChunkZ() - centroChunkZ);
 
-            if (distX > renderDistance || distZ > renderDistance) {
+            if (distX > radioTerreno || distZ > radioTerreno) {
                 chunk.cleanup(); 
                 iterator.remove(); 
+            } else if ((distX > renderDistance || distZ > renderDistance) && chunk.tieneMallaPedida()) {
+                // Quedó en el anillo de afuera: se queda con su terreno, para ser vecino, pero sin malla
+                chunk.liberarMalla();
             }
+        }
+
+        // Los que volvieron a quedar cerca (por ejemplo, al caminar para atrás) y ya tienen a sus vecinos
+        for (Chunk chunk : chunksActivos.values()) {
+            pedirMallaSiEstaListo(chunk);
         }
     }
 
-    public void procesarMallasPendientes() {
-        if (!chunksListosParaGL.isEmpty()) {
-            Chunk c = chunksListosParaGL.poll();
-            if (c != null && chunksActivos.containsValue(c)) {
-                c.cargarMallaEnOpenGL(); 
-            } else if (c != null) {
-                // Su chunk salió del rango mientras se armaba: la malla se tira sin subirla
-                MedidorRendimiento.mallaDescartada();
+    // Manda una tarea al pool (hilo principal)
+    private void mandar(boolean esMalla, Runnable trabajo) {
+        if (cerrado) return;
+        tareasEnCurso.incrementAndGet();
+        chunkGenerators.execute(new Tarea(esMalla, ordenTareas++, () -> {
+            try {
+                trabajo.run();
+            } finally {
+                tareasEnCurso.decrementAndGet();
             }
+        }));
+    }
+
+    // Pide la malla del chunk si le toca y todavía no la pidió: está a renderDistance o menos del jugador,
+    // tiene su terreno y los 4 de al lado también. Hilo principal.
+    private void pedirMallaSiEstaListo(Chunk chunk) {
+        if (chunk == null || chunk.tieneMallaPedida() || !chunk.estaGenerado()) return;
+        int cx = chunk.getChunkX();
+        int cz = chunk.getChunkZ();
+        if (Math.abs(cx - centroChunkX) > renderDistance || Math.abs(cz - centroChunkZ) > renderDistance) return;
+        if (tieneTerreno(cx - 1, cz) && tieneTerreno(cx + 1, cz) && tieneTerreno(cx, cz - 1) && tieneTerreno(cx, cz + 1)) {
+            pedirMalla(chunk);
         }
+    }
+
+    private boolean tieneTerreno(int chunkX, int chunkZ) {
+        Chunk chunk = getChunk(chunkX, chunkZ);
+        return chunk != null && chunk.estaGenerado();
+    }
+
+    // Manda a armar la malla del chunk con sus bloques de ahora. Si ya había una pedida, la vieja se tira
+    // cuando llegue (hilo principal).
+    private void pedirMalla(Chunk chunk) {
+        int version = chunk.pedirVersionMalla();
+        mandar(true, () -> {
+            // Si se salió al menú, el mapa ya está vacío: sin vecinos, la malla saldría con todas las caras
+            // y tardaría muchísimo, y nadie la va a dibujar
+            if (cerrado) return;
+            mallasListas.add(chunk.armarMalla(version));
+        });
+    }
+
+    // Hilo principal, una vez por frame (desde procesarMallasPendientes()). Primero, por cada chunk que terminó
+    // su terreno, pide las mallas que ahora se pueden armar: la suya y las de sus 4 vecinos, que pueden haber
+    // estado esperándolo. Después devuelve la próxima malla terminada que hay que subir a la GPU, o null. Las
+    // que ya no sirven (su chunk se alejó, se descargó o pidió una más nueva) se tiran.
+    // Está separado de la subida para que las herramientas sin pantalla lo usen igual que el juego.
+    public Chunk.MallaArmada sacarMallaParaSubir() {
+        Chunk listo;
+        while ((listo = terrenosListos.poll()) != null) {
+            int cx = listo.getChunkX();
+            int cz = listo.getChunkZ();
+            if (getChunk(cx, cz) != listo) continue; // Se descargó mientras se generaba
+            pedirMallaSiEstaListo(listo);
+            pedirMallaSiEstaListo(getChunk(cx - 1, cz));
+            pedirMallaSiEstaListo(getChunk(cx + 1, cz));
+            pedirMallaSiEstaListo(getChunk(cx, cz - 1));
+            pedirMallaSiEstaListo(getChunk(cx, cz + 1));
+        }
+
+        Chunk.MallaArmada malla;
+        while ((malla = mallasListas.poll()) != null) {
+            if (malla.chunk().esMallaVigente(malla)) return malla;
+            MedidorRendimiento.mallaDescartada();
+        }
+        return null;
+    }
+
+    // Sube a la GPU una malla terminada por frame
+    public void procesarMallasPendientes() {
+        Chunk.MallaArmada malla = sacarMallaParaSubir();
+        if (malla != null) malla.chunk().cargarMallaEnOpenGL(malla);
+    }
+
+    // Si los hilos todavía tienen trabajo o hay terrenos o mallas sin procesar. Solo para las herramientas sin
+    // pantalla: para saber cuándo terminó de cargarse el mundo, llaman a sacarMallaParaSubir() hasta que esto
+    // da false. La tarea descuenta tareasEnCurso después de dejar su resultado en la cola: si da 0, está ahí.
+    public boolean estaTrabajando() {
+        return tareasEnCurso.get() > 0 || !terrenosListos.isEmpty() || !mallasListas.isEmpty();
     }
 
     public void render() {
@@ -152,16 +264,29 @@ public class World {
         return chunk.getBlock(Math.floorMod(x, Chunk.CHUNK_SIZE), y, Math.floorMod(z, Chunk.CHUNK_SIZE));
     }
 
+    // Cambia un bloque y vuelve a pedir la malla de su chunk. Si el bloque está en el borde, también la del
+    // chunk de al lado, que dibuja (o esconde) la cara que da a este bloque. Los chunks que todavía no
+    // pidieron su malla la arman después, ya con el bloque nuevo.
     public void setBlockGlobal(int x, int y, int z, int blockType) {
         Chunk modificado = chunkEn(x, z);
-        if (modificado != null) {
-            modificado.setBlock(Math.floorMod(x, Chunk.CHUNK_SIZE), y, Math.floorMod(z, Chunk.CHUNK_SIZE), blockType);
+        // Sin terreno todavía, el generador lo pisaría
+        if (modificado == null || !modificado.estaGenerado() || y < 0 || y >= Chunk.CHUNK_HEIGHT) return;
 
-            chunkGenerators.submit(() -> {
-                modificado.generarTerrenoAsincrono(); 
-                chunksListosParaGL.add(modificado);
-            });
-        }
+        int localX = Math.floorMod(x, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(z, Chunk.CHUNK_SIZE);
+        modificado.setBlock(localX, y, localZ, blockType);
+
+        int cx = modificado.getChunkX();
+        int cz = modificado.getChunkZ();
+        volverAPedirMalla(modificado);
+        if (localX == 0) volverAPedirMalla(getChunk(cx - 1, cz));
+        if (localX == Chunk.CHUNK_SIZE - 1) volverAPedirMalla(getChunk(cx + 1, cz));
+        if (localZ == 0) volverAPedirMalla(getChunk(cx, cz - 1));
+        if (localZ == Chunk.CHUNK_SIZE - 1) volverAPedirMalla(getChunk(cx, cz + 1));
+    }
+
+    private void volverAPedirMalla(Chunk chunk) {
+        if (chunk != null && chunk.tieneMallaPedida()) pedirMalla(chunk);
     }
 
     // Si el chunk que contiene la columna (x, z) del mundo ya tiene su terreno.
@@ -272,6 +397,7 @@ public class World {
             if (chunk != null) chunk.cleanup();
         }
         chunksActivos.clear();
-        chunksListosParaGL.clear();
+        terrenosListos.clear();
+        mallasListas.clear();
     }
 }

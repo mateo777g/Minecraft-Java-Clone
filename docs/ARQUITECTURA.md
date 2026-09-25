@@ -30,8 +30,8 @@ Fuera del código del juego está `herramientas/`, con dos programas que generan
 | `render` | `ShaderProgram` | Compila y enlaza el vertex y el fragment shader. `readResource()` lee un `.glsl` del classpath. |
 | `render` | `Texture` | Carga una imagen del classpath con STB y la sube a la GPU con filtro `GL_NEAREST` (pixelado). Guarda su tamaño (`getAncho()`, `getAlto()`). |
 | `render` | `ChunkMeshBuilder` | Convierte los bloques de un chunk en un `float[]` de vértices, dibujando solo las caras visibles. Lee los vecinos de los arreglos de bloques (el suyo y los de los 4 chunks de al lado) y junta los vértices en una lista por hilo que se reutiliza, así casi no deja basura. |
-| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. `estaCerrado()` avisa a los hilos que el mundo ya se liberó. `getChunk(x, z)` da un chunk por sus coordenadas de chunk. Tiene el `WorldGenerator` de su semilla. `agregarChunk()` solo lo usa `herramientas/MedirChunks.java`. |
-| `world` | `Chunk` | Un pedazo de 48 × 200 × 48 bloques con sus mallas (opaca y transparente) en la GPU. |
+| `world` | `World` | Guarda los chunks activos, decide cuáles cargar (los más cercanos primero) y cuáles descargar, pide la malla de cada chunk cuando sus 4 vecinos ya tienen terreno, los dibuja y resuelve romper/poner bloques. `estaGenerado(x, z)` dice si el terreno de un chunk ya existe. `estaCerrado()` avisa a los hilos que el mundo ya se liberó. `getChunk(x, z)` da un chunk por sus coordenadas de chunk. Tiene el `WorldGenerator` de su semilla. `agregarChunk()` solo lo usa `herramientas/MedirChunks.java`; `sacarMallaParaSubir()` y `estaTrabajando()` le sirven a las herramientas para cargar el mundo como el juego, sin GPU. |
+| `world` | `Chunk` | Un pedazo de 48 × 200 × 48 bloques con sus mallas (opaca y transparente) en la GPU. `generarTerreno()` y `armarMalla()` corren en los hilos generadores; la malla vuelve como un `MallaArmada` con su número de versión. |
 | `world` | `Block` | Los IDs de todos los bloques y `isSolid()`. |
 | `world.gen` | `WorldGenerator` | Llena un chunk: terreno, cuevas, ríos, minerales, árboles, cactus y nubes. Hay uno por mundo, hecho con su semilla; lo que es al azar sale de un `Random` propio de cada chunk (ver "Crear mundo y la semilla"). |
 | `world.gen` | `Biome` | Los biomas (llanura, desierto, océano) con su bloque de superficie y relleno. |
@@ -79,9 +79,9 @@ Los recursos se leen del classpath con `getResourceAsStream` (por ejemplo `"/sha
 5. Crea la matriz de proyección (FOV de 70°, planos 0.1 y 1000).
 6. Arranca en el estado `MENU_PRINCIPAL`. Todavía no hay mundo.
 
-Al hacer clic en *Un jugador* se abre *Crear mundo* (ver "Crear mundo y la semilla"). Con *Crear mundo* (o Enter), `iniciarPartida(semilla)` hace `new Partida(semilla)` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` imprime la semilla en la consola y crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks y esa semilla. El `World` todavía no pide ningún chunk: `Partida` busca primero el spawn (`buscarSpawn()`, ver "Dónde aparece el jugador"), lo imprime en la consola ("Spawn: x, z") y llama a `actualizarMundo()` con él. Eso pide generar 9 × 9 = 81 chunks alrededor del spawn, empezando por el suyo.
+Al hacer clic en *Un jugador* se abre *Crear mundo* (ver "Crear mundo y la semilla"). Con *Crear mundo* (o Enter), `iniciarPartida(semilla)` hace `new Partida(semilla)` y pasa a `GENERANDO_MUNDO`. El constructor de `Partida` imprime la semilla en la consola y crea el `PlayerController`, la `Camera` y el `World` con una distancia de render de 4 chunks y esa semilla. El `World` todavía no pide ningún chunk: `Partida` busca primero el spawn (`buscarSpawn()`, ver "Dónde aparece el jugador"), lo imprime en la consola ("Spawn: x, z") y llama a `actualizarMundo()` con él. Eso pide el terreno de 11 × 11 = 121 chunks alrededor del spawn, empezando por el suyo; las mallas son solo de los 9 × 9 = 81 del medio (ver "De 'hace falta un chunk' a 'se ve en pantalla'").
 
-Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuando el chunk del spawn, el que contiene su columna, ya tiene su terreno y su malla en la GPU (`partida.estaLista()`), `empezarAJugar()`:
+Mientras tanto se ve "Generando mundo..." (con el cursor todavía visible). Cuando el chunk del spawn, el que contiene su columna, ya tiene su terreno y su malla en la GPU (`partida.estaLista()`; la malla necesita también el terreno de sus 4 vecinos, que se piden justo después del suyo), `empezarAJugar()`:
 
 1. Captura el cursor (`GLFW_CURSOR_DISABLED`) y apaga los botones pegajosos (en la partida nadie los lee y un clic quedaría "pegado" para el próximo menú).
 2. Llama a `partida.comenzar()`, que busca la altura de la superficie en la columna del spawn (x, z), pone al jugador encima, en (x + 0.5, altura + 1, z + 0.5), y llama a `Input.init()`. `Input.init()` registra los callbacks y pone `firstMouse = true` para que la cámara no salte con el primer movimiento del ratón.
@@ -116,7 +116,7 @@ Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `J
 **`GENERANDO_MUNDO`:**
 
 1. Limpia la pantalla.
-2. `partida.updateGenerando()`: sube a la GPU una malla terminada, igual que en la partida, así al entrar ya se ve buena parte del mundo.
+2. `partida.updateGenerando()`: pide las mallas que ya se pueden armar y sube a la GPU una terminada, igual que en la partida, así al entrar ya se ve buena parte del mundo.
 3. `PantallaGenerando.render()`: el fondo de tierra y "Generando mundo..." en el centro.
 4. Si `partida.estaLista()`, llama a `empezarAJugar()`.
 5. Intercambia buffers y procesa eventos.
@@ -128,7 +128,7 @@ Antes de mirar el estado revisa si se apretó ESC desde el frame anterior: en `J
 3. `jugador.update()`: mueve al jugador según WASD, Espacio y Shift, y resuelve colisiones.
 4. `camara.updatePosition()`: pone la cámara a la altura de los ojos.
 5. Si el jugador cambió de chunk, llama a `mundo.actualizarMundo()` para cargar y descargar chunks.
-6. `mundo.procesarMallasPendientes()`: sube a la GPU **una** malla terminada por frame.
+6. `mundo.procesarMallasPendientes()`: pide las mallas de los chunks cuyos 4 vecinos ya tienen terreno y sube a la GPU **una** malla terminada por frame.
 7. Pasa las matrices al shader, activa la textura y llama a `mundo.render()`.
 8. `Hud.render()`: dibuja la hotbar y la mira encima de todo.
 9. Intercambia buffers y procesa eventos (`glfwPollEvents`). Los callbacks del ratón corren aquí.
@@ -207,38 +207,44 @@ La semilla se ve en la pausa ("Semilla: 12345") y se imprime en la consola al cr
 ### Chunks
 
 - Cada `Chunk` mide `CHUNK_SIZE` × `CHUNK_HEIGHT` × `CHUNK_SIZE` = 48 × 200 × 48 bloques.
-- Los bloques se guardan en `int[x][y][z]`, un ID por bloque. Son unos 1.8 MB de RAM por chunk (~150 MB con 81 chunks).
+- Los bloques se guardan en `int[x][y][z]`, un ID por bloque. Son unos 1.8 MB de RAM por chunk (~220 MB con los 121 chunks cargados).
 - `World` guarda los chunks activos en un `ConcurrentHashMap<Long, Chunk>`. La clave junta `chunkX` y `chunkZ` en un `long` y lo mezcla con el paso final de SplitMix64, que a claves distintas les da números distintos. Sin mezclar, el `hashCode()` de ese `Long` era `chunkX ^ chunkZ`: las 81 claves caían en 16 cubetas y buscar un chunk era lento y reservaba memoria (ver la fase 2 de `PLAN_OPTIMIZACION.md`).
 - Para pasar de coordenadas del mundo a coordenadas del chunk se usa `Math.floorDiv` y `Math.floorMod`, así funciona bien con coordenadas negativas.
 
 ### De "hace falta un chunk" a "se ve en pantalla"
 
+El terreno se genera hasta `renderDistance + 1` (11 × 11 = 121 chunks) y las mallas se arman y se dibujan solo hasta `renderDistance` (9 × 9 = 81). El anillo de afuera no tiene malla: está para que cada chunk con malla tenga a sus 4 vecinos con terreno. Así cada malla se arma una vez y bien, como en Minecraft: sus caras del borde miran los bloques de verdad del vecino, nunca un chunk sin cargar (aire) ni uno a medio generar (ceros, piedra).
+
 ```text
 Hilo principal                         Hilos secundarios (núcleos - 1)
 ──────────────                         ───────────────────────────────
 actualizarMundo()
-  ├─ crea el Chunk vacío y lo guarda
-  └─ manda la tarea al pool ─────────► generarTerrenoAsincrono()
-     (los más cercanos primero)
-                                          ├─ WorldGenerator.generateTerrain()  (solo la 1.ª vez)
-                                          └─ ChunkMeshBuilder: malla opaca y transparente
-                                       ◄── lo mete en la cola chunksListosParaGL
+  ├─ crea los Chunk vacíos que faltan
+  └─ manda sus terrenos al pool ─────► generarTerreno()
+     (los más cercanos primero)        ◄── lo mete en la cola terrenosListos
 procesarMallasPendientes()
-  └─ saca 1 chunk de la cola y sube sus vértices a la GPU (VAO/VBO)
+  ├─ por cada terreno listo, revisa ese chunk y sus 4 vecinos: si está
+  │  a renderDistance o menos, no pidió malla y sus 4 vecinos ya tienen
+  │  terreno, pide la malla ──────────► armarMalla(versión)  (ChunkMeshBuilder)
+  │                                    ◄── deja un MallaArmada en la cola mallasListas
+  └─ saca 1 malla de la cola y, si es la última versión pedida de su
+     chunk, sube sus vértices a la GPU (VAO/VBO)
 render()
   └─ dibuja los chunks que ya están listos
 ```
 
-OpenGL solo se puede usar desde el hilo principal. Por eso los hilos secundarios dejan los vértices en `float[]` y el hilo principal los sube después.
+OpenGL solo se puede usar desde el hilo principal. Por eso los hilos secundarios dejan los vértices en `float[]` y el hilo principal los sube después. Qué malla pedir también lo decide el hilo principal: así no hay carreras entre hilos.
 
-- `actualizarMundo()` ordena los chunks que faltan por distancia al jugador antes de mandarlos al pool, que los atiende en el orden en que llegan. Así el chunk donde está el jugador sale primero: al empezar una partida es el del spawn, y la pantalla de "Generando mundo..." dura una fracción de segundo en vez de esperar a que se generen la mitad de los 81.
-- `Chunk.terrenoGenerado` es `volatile`: lo escribe un hilo secundario y lo lee el principal (`World.estaGenerado()`). Así, cuando el hilo principal lo ve en `true`, también ve los bloques que se escribieron antes.
-- Los hilos del pool son *daemon* y `World.cleanup()` usa `shutdownNow()`, que descarta los chunks que esperan en la cola. Con `shutdown()` se generarían igual después de vaciar el mapa y, como ya no tienen vecinos, cada malla saldría con todas las caras: cerrar el juego en "Generando mundo..." dejaba el proceso varios minutos vivo.
-- Los chunks que ya se estaban generando no se pueden descartar. Por eso `World.cleanup()` también pone `cerrado = true` (`volatile`): `Chunk` no empieza la malla si el mundo ya se cerró, y `ChunkMeshBuilder` deja de armarla a la mitad (lo revisa en cada columna x). Sin esto, al salir al menú los hilos seguían varios segundos armando mallas con todas las caras.
+- `actualizarMundo()` ordena los chunks que faltan por distancia al jugador antes de mandar sus terrenos al pool. Al empezar una partida, los primeros son el del spawn y sus 4 vecinos: apenas están, se pide la malla del spawn y la pantalla de "Generando mundo..." dura una fracción de segundo.
+- **Las mallas van primero.** La cola del pool (`PriorityBlockingQueue`) ordena las tareas con `World.Tarea`: una malla pasa adelante de los terrenos que esperan (es lo que se ve, y sus terrenos ya están hechos), y entre dos del mismo tipo va la que se mandó antes. Sin esto, la malla del spawn quedaría detrás de los 121 terrenos.
+- **Una sola malla válida por chunk.** Cada pedido le suma 1 a `versionMalla` del chunk y la tarea lleva ese número. Solo se sube la malla de la última versión pedida: si se rompen dos bloques seguidos, la malla del primero, aunque termine después, se tira (cuenta como descartada en el medidor).
+- `Chunk.terrenoGenerado` es `volatile`: lo escribe un hilo secundario y lo lee el principal (`World.estaGenerado()` y la revisión de los vecinos). Así, cuando el hilo principal lo ve en `true`, también ve los bloques que se escribieron antes, y los ve también el hilo al que después le manda la malla.
+- Los hilos del pool son *daemon* y `World.cleanup()` usa `shutdownNow()`, que descarta las tareas que esperan en la cola. Con `shutdown()` se harían igual después de vaciar el mapa y, como ya no hay vecinos, cada malla saldría con todas las caras: cerrar el juego en "Generando mundo..." dejaba el proceso varios minutos vivo.
+- Las tareas que ya estaban corriendo no se pueden descartar. Por eso `World.cleanup()` también pone `cerrado = true` (`volatile`): la tarea de la malla no empieza si el mundo ya se cerró, y `ChunkMeshBuilder` deja de armarla a la mitad (lo revisa en cada columna x). Sin esto, al salir al menú los hilos seguían varios segundos armando mallas con todas las caras.
 
-Los chunks que quedan a más de `renderDistance` del jugador se liberan (`chunk.cleanup()`) y se sacan del mapa.
+Al cambiar de chunk, `actualizarMundo()` libera la malla (`chunk.liberarMalla()`, que borra el VAO y el VBO) de los chunks que quedaron más lejos que `renderDistance`, y libera y saca del mapa los que quedaron más lejos que `renderDistance + 1` (`chunk.cleanup()`). Si un chunk que perdió su malla vuelve a quedar cerca (por ejemplo, al caminar para atrás), se le pide otra.
 
-Cuando rompes o pones un bloque, `setBlockGlobal()` cambia el ID y vuelve a mandar el chunk al pool. El terreno no se regenera (`terrenoGenerado` ya es `true`), solo se reconstruye la malla.
+Cuando rompes o pones un bloque, `setBlockGlobal()` cambia el ID y vuelve a pedir la malla de ese chunk. Si el bloque está en el borde (x o z en 0 o en 47), también la del chunk de al lado, que es el que dibuja o esconde la cara que da a ese bloque. El terreno no se regenera. Si el chunk todavía no tiene terreno, no hace nada (el generador lo pisaría).
 
 ### Generación del terreno (`WorldGenerator`)
 
@@ -324,7 +330,7 @@ El atlas de 4 × 4 ya está lleno. Para un bloque nuevo hay que:
 ## Render
 
 - **Formato de vértice:** 5 floats (x, y, z, u, v). Cada cara visible son 2 triángulos, o sea 6 vértices. No se usan índices.
-- **Caras visibles:** `ChunkMeshBuilder.shouldRenderFace()` mira al bloque vecino. Si está en el mismo chunk, lo lee de su arreglo; si está en uno de los 4 chunks de al lado, del arreglo de ese chunk, que se busca una sola vez por malla con `world.getChunk()`. Si ese chunk no está cargado, el vecino cuenta como aire, y si está cargado pero todavía sin terreno, como piedra (ceros). Arriba del todo (y = 199) la cara de arriba se ve; la de abajo de y = 0, no. Un bloque sólido solo dibuja las caras que dan al aire, al agua o a una nube. El agua no dibuja caras contra otra agua ni contra sólidos.
+- **Caras visibles:** `ChunkMeshBuilder.shouldRenderFace()` mira al bloque vecino. Si está en el mismo chunk, lo lee de su arreglo; si está en uno de los 4 chunks de al lado, del arreglo de ese chunk, que se busca una sola vez por malla con `world.getChunk()`. Si ese chunk no está cargado, el vecino cuenta como aire, y si está cargado pero todavía sin terreno, como piedra (ceros); en el juego ninguna de las dos pasa, porque `World` pide la malla recién cuando los 4 vecinos tienen terreno. Arriba del todo (y = 199) la cara de arriba se ve; la de abajo de y = 0, no. Un bloque sólido solo dibuja las caras que dan al aire, al agua o a una nube. El agua no dibuja caras contra otra agua ni contra sólidos.
 - **Sin basura:** cada cara escribe sus 6 vértices directo en `ListaFloats`, un `float[]` que crece solo. Hay una por hilo (`ThreadLocal`) y se reutiliza de malla en malla; al final se devuelve una copia del tamaño justo. Las coordenadas de textura de cada bloque salen de la tabla `UVS`, calculada una vez con `getUVs()`. Antes, con una `List<Float>` y buscando cada vecino en el mapa de chunks, una malla reservaba 141 MB y ahora 4 MB (ver la fase 2 de `PLAN_OPTIMIZACION.md`).
 - **Dos pasadas:** `World.render()` dibuja primero la malla opaca de todos los chunks (sin blending) y luego la transparente, que solo tiene el agua (con blending y sin escribir profundidad). Las nubes van en la malla opaca.
 - **HUD:** `Hud` dibuja el fondo, los marcos y la mira con OpenGL antiguo (`glOrtho` + `glBegin`/`glEnd`). Después dibuja un cubo 3D girado por casilla usando el mismo shader con una proyección ortográfica. Funciona porque el contexto que crea GLFW no es "core profile".
@@ -376,8 +382,8 @@ La tipografía solo tiene mayúsculas (las minúsculas salen como mayúsculas) y
 
 Es la fase 1 de `PLAN_OPTIMIZACION.md`, que tiene los detalles y las mediciones.
 
-- **En el juego:** `debug/MedidorRendimiento`, prendido con `Constants.MEDIR_RENDIMIENTO`. Solo mide los frames de `JUGANDO`. Cada frame se parte en `limpiar`, `jugador`, `mundo` (`actualizarMundo()`), `mallas` (`procesarMallasPendientes()`), `render` y `swap` (con V-Sync, la espera al monitor). Imprime en la consola, con el prefijo `[medidor]`, cada frame de 25 ms o más con su desglose y si hubo GC; cada 5 s de juego un resumen (FPS, peor frame, GC, heap y chunks pedidos, armados, subidos y descartados); y al terminar la partida el total. Además, `Chunk.generarTerrenoAsincrono()` le avisa cuánto tardó cada chunk y cuánta memoria reservó su hilo, y `World` y `Chunk` cuántos chunks se pidieron, subieron o descartaron. Lo que imprime va sin tildes, para que se vea bien en cualquier consola de Windows.
-- **Sin pantalla:** `herramientas/MedirChunks.java` mide un chunk en un solo hilo (tiempo y memoria de cada paso), simula cruzar un borde con los hilos generadores (GC y un hilo "sonda" que hace de hilo principal) y comprueba que el mundo no cambió comparando los bloques y las mallas con `herramientas/referencia_mallas.txt`. Necesita las clases del juego compiladas:
+- **En el juego:** `debug/MedidorRendimiento`, prendido con `Constants.MEDIR_RENDIMIENTO`. Solo mide los frames de `JUGANDO`. Cada frame se parte en `limpiar`, `jugador`, `mundo` (`actualizarMundo()`), `mallas` (`procesarMallasPendientes()`), `render` y `swap` (con V-Sync, la espera al monitor). Imprime en la consola, con el prefijo `[medidor]`, cada frame de 25 ms o más con su desglose y si hubo GC; cada 5 s de juego un resumen (FPS, peor frame, GC, heap y chunks: pedidos, terrenos, mallas armadas, subidas y descartadas); y al terminar la partida el total. Además, `Chunk.generarTerreno()` y `Chunk.armarMalla()` le avisan cuánto tardaron y cuánta memoria reservó su hilo, y `World` y `Chunk` cuántos chunks se pidieron y cuántas mallas se subieron o descartaron. Lo que imprime va sin tildes, para que se vea bien en cualquier consola de Windows.
+- **Sin pantalla:** `herramientas/MedirChunks.java` mide un chunk en un solo hilo (tiempo y memoria de cada paso), cruza bordes con el `World` del juego y sus hilos generadores (GC y un hilo "sonda" que hace de hilo principal) y comprueba que el mundo no cambió comparando los bloques y las mallas con `herramientas/referencia_mallas.txt`. Necesita las clases del juego compiladas:
 
 ```text
 mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
@@ -393,7 +399,7 @@ En Windows (PowerShell) el separador es `;`: `java -cp "target/classes;$(Get-Con
 | Resolución y título de la ventana | `Constants.SCREEN_WIDTH`, `SCREEN_HEIGHT`, `WINDOW_TITLE` |
 | Sensibilidad del ratón | `Constants.MOUSE_SENSITIVITY` |
 | Bloques de la hotbar | `Constants.BLOQUES_HOTBAR` |
-| Distancia de render (en chunks) | `Partida.RENDER_DISTANCE` (4 → 9 × 9 chunks) |
+| Distancia de render (en chunks) | `Partida.RENDER_DISTANCE` (4 → 9 × 9 chunks con malla; el terreno llega uno más, 11 × 11) |
 | Tamaño y altura del chunk | `Chunk.CHUNK_SIZE` (48) y `Chunk.CHUNK_HEIGHT` (200) |
 | Nivel del agua | `WorldGenerator.NIVEL_AGUA` (68) |
 | Cómo se convierte el texto en semilla | `Semilla.desdeTexto()` |
@@ -430,7 +436,7 @@ En Windows (PowerShell) el separador es `;`: `java -cp "target/classes;$(Get-Con
 Estas salen de leer el código. Las que no dicen "confirmado" no las he probado en el juego: conviene confirmarlas antes de arreglarlas.
 
 1. **Desfase de medio bloque (confirmado sin pantalla).** `ChunkMeshBuilder` dibuja cada bloque centrado en su coordenada entera (de x − 0.5 a x + 0.5), pero las colisiones y el rayo para romper/poner usan `Math.floor`, o sea que tratan al bloque como si ocupara de x a x + 1. Por eso el jugador flota medio bloque sobre el suelo, se mete en los bloques por algunas caras y choca antes por otras, y el 68–76 % de las veces rompe otro bloque que el que está bajo la mira (`herramientas/RevisarJugador.java`). El usuario lo notó en Windows. Se arregla en la fase 2 de `PLAN_AGUA_JUGADOR.md`, junto con el spawn un bloque más arriba (`Partida.comenzar()`).
-2. **Huecos en los bordes de chunk (confirmado sin pantalla).** Un chunk nuevo empieza lleno de ceros, y 0 es `STONE`. Si la malla de un chunk se arma antes de que su vecino termine de generarse, las caras del borde se ocultan como si hubiera piedra al lado, y no se vuelven a calcular cuando el vecino ya está listo. Pasa algo parecido al romper un bloque justo en el borde, porque solo se reconstruye la malla de ese chunk y no la del vecino. Como los chunks se generan de adentro hacia afuera, el del spawn siempre arma su malla antes que sus vecinos. Un programa aparte que carga el mundo como el juego (semilla 12345, 3 hilos) encontró que faltan ~79.000 de 2,95 millones de caras, en 77 de los 81 chunks, antes y después de la fase 2 de la optimización (ver "Las caras de los bordes" en `PLAN_OPTIMIZACION.md`). Muchas están bajo tierra, pero donde el terreno sube justo en un borde tendría que verse un hueco. Con el agua es peor: las paredes de agua que se dibujan contra un chunk que todavía no está cargado se quedan cuando llega, y se ven como rayas oscuras en los ríos y el mar (el usuario lo vio en Windows; `herramientas/RevisarBordes.java`). El arreglo está en la fase 1 de `PLAN_AGUA_JUGADOR.md`.
+2. **~~Huecos en los bordes de chunk y rayas en el agua.~~ Arreglado** en la fase 1 de `PLAN_AGUA_JUGADOR.md`. La malla de cada chunk se armaba una sola vez, con lo que hubiera al lado en ese momento: nada (aire), un vecino todavía sin terreno (ceros, piedra) o a medio generar, y no se volvía a armar cuando el vecino llegaba. Faltaban ~79.000 caras opacas en la carga inicial, y las paredes de agua contra un chunk sin cargar se quedaban al caminar y se veían como rayas oscuras en los ríos y el mar (el usuario lo vio en Windows). Al romper o poner un bloque en el borde tampoco se rearmaba el vecino. Ahora el terreno llega un anillo más allá que las mallas y cada malla se pide cuando sus 4 vecinos ya tienen terreno (ver "De 'hace falta un chunk' a 'se ve en pantalla'"). `herramientas/RevisarBordes.java` da 0 caras de más y de menos.
 3. **La ventana es de tamaño fijo** (`GLFW_RESIZABLE` en falso) porque ni `glViewport`, ni la proyección, ni el HUD, ni los botones del menú, ni el fondo de la pausa se ajustan a otro tamaño: todos usan `SCREEN_WIDTH` y `SCREEN_HEIGHT`. Para poder redimensionarla habría que recalcular todo eso cuando cambia el tamaño.
 4. **La velocidad depende de los FPS**, porque el movimiento se suma por frame y no por tiempo transcurrido. A los ~226 FPS del equipo del usuario son ~27 bloques por segundo. Se arregla en la fase 3 de `PLAN_AGUA_JUGADOR.md`.
 5. **Las teclas 1–9 se leen una vez por frame** con `glfwGetKey`. Con pocos FPS, un toque más corto que un frame se puede perder. Se notó al probar con OpenGL por software (unos 10 FPS); con V-Sync a 60 FPS no debería pasar. Si pasa, se arregla igual que ESC: con un callback de teclado.

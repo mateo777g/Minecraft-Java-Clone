@@ -14,9 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
 
@@ -32,8 +29,9 @@ import com.sun.management.ThreadMXBean;
 // Mide sin pantalla ni GPU lo que cuesta un chunk (fase 1 de docs/PLAN_OPTIMIZACION.md), con la semilla 12345:
 //  1. Un chunk en un solo hilo: tiempo y memoria reservada de cada paso (crear el Chunk, generar el terreno,
 //     armar la malla opaca y la transparente).
-//  2. Cruzar un borde: 9 chunks nuevos a la vez en núcleos − 1 hilos, como World. Cuánto tardan, el GC y
-//     cuánto se retrasa un hilo "sonda" que hace de hilo principal (se despierta cada 1 ms).
+//  2. Cruzar un borde con el World del juego y sus hilos (núcleos − 1): 11 terrenos y 9 mallas nuevos, porque el
+//     terreno llega un anillo más allá que las mallas (fase 1 de docs/PLAN_AGUA_JUGADOR.md). Cuánto tardan, el
+//     GC y cuánto se retrasa un hilo "sonda" que hace de hilo principal (se despierta cada 1 ms).
 //  3. El mundo no cambió: compara los bloques y las mallas de los chunks de la parte 1 (tamaño y hash) con
 //     herramientas/referencia_mallas.txt. Si ese archivo no existe, lo crea.
 //
@@ -49,7 +47,7 @@ public class MedirChunks {
     // Parte 1: las mallas de (2·RADIO + 1)² chunks alrededor de (0, 0), con un anillo más de terreno alrededor
     // para que todas tengan sus vecinos. Son los que se comparan con la referencia.
     private static final int RADIO = 2;
-    // Parte 2: como en Partida, 4 → 9 × 9 chunks; el jugador avanza PASOS_BORDE chunks hacia +x
+    // Parte 2: como en Partida, 4 → 9 × 9 mallas y 11 × 11 terrenos; el jugador avanza PASOS_BORDE chunks hacia +x
     private static final int RENDER_DISTANCE = 4;
     private static final int PASOS_BORDE = 5;
     private static final long SONDA_CADA_NS = 1_000_000;
@@ -127,8 +125,8 @@ public class MedirChunks {
         }
     }
 
-    // Los mismos pasos que World.actualizarMundo() y Chunk.generarTerrenoAsincrono(), pero por separado para
-    // medir cada uno. Primero el terreno de todos (con un anillo más) y después las mallas: así las mallas
+    // Los mismos pasos que World.actualizarMundo(), Chunk.generarTerreno() y Chunk.armarMalla(), pero por separado
+    // para medir cada uno. Primero el terreno de todos (con un anillo más) y después las mallas: así las mallas
     // salen siempre iguales, porque todos sus vecinos ya están generados. Con resumen == null solo calienta.
     private static void medirArea(int centroX, int centroZ, int radio, Map<String, String> resumen) throws Exception {
         World mundo = new World(RENDER_DISTANCE, SEMILLA);
@@ -223,36 +221,24 @@ public class MedirChunks {
         }
     }
 
-    // Como en el juego: el mundo cargado (9 × 9 chunks con terreno) y el jugador cruza PASOS_BORDE bordes hacia +x.
-    // En cada paso, el "hilo principal" crea los 9 chunks de la columna nueva y los manda a núcleos − 1 hilos,
-    // que corren Chunk.generarTerrenoAsincrono(), lo mismo que en el juego.
+    // Con el World del juego: carga el mundo alrededor de (0, 0) y el jugador cruza PASOS_BORDE bordes hacia +x.
+    // En cada paso, este hilo hace de hilo principal: llama a actualizarMundo(), que crea los 11 chunks de la
+    // columna nueva y manda sus terrenos a los hilos del World, y después hace lo que procesarMallasPendientes()
+    // sin la GPU (sacarMallaParaSubir()): pide las 9 mallas de la columna que quedó dentro de la distancia de
+    // render cuando llegan los terrenos de sus vecinos, y saca las terminadas. El paso termina con la última malla.
     private static void cruzarBordes() throws Exception {
         World mundo = new World(RENDER_DISTANCE, SEMILLA);
-        for (int cx = -RENDER_DISTANCE; cx <= RENDER_DISTANCE; cx++) {
-            for (int cz = -RENDER_DISTANCE; cz <= RENDER_DISTANCE; cz++) {
-                Chunk chunk = new Chunk(mundo, cx, cz);
-                mundo.agregarChunk(chunk);
-                mundo.getGenerador().generateTerrain(chunk.getBlocks(), cx, cz);
-            }
-        }
-
-        int cuantosHilos = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);   // Igual que World
-        List<Thread> generadores = new ArrayList<>();
-        ExecutorService pool = Executors.newFixedThreadPool(cuantosHilos, tarea -> {
-            Thread hilo = new Thread(tarea, "generador-chunks");
-            hilo.setDaemon(true);
-            synchronized (generadores) {
-                generadores.add(hilo);
-            }
-            return hilo;
-        });
+        mundo.actualizarMundo(0, 0);
+        esperar(mundo);
+        List<Thread> generadores = hilosGeneradores();
 
         int lado = 2 * RENDER_DISTANCE + 1;
-        System.out.printf(Locale.ROOT, "2) Cruzar un borde: %d chunks nuevos en %d hilos generadores, %d veces%n", lado, cuantosHilos, PASOS_BORDE);
+        System.out.printf(Locale.ROOT, "2) Cruzar un borde: %d terrenos y %d mallas nuevos en %d hilos generadores (los del World), %d veces%n",
+                lado + 2, lado, generadores.size(), PASOS_BORDE);
         double sumaMs = 0, sumaGcMs = 0, sumaMb = 0;
         long peorPausa = 0, peorRetraso = 0;
         for (int paso = 1; paso <= PASOS_BORDE; paso++) {
-            int nuevaX = paso + RENDER_DISTANCE;
+            float x = paso * Chunk.CHUNK_SIZE;
 
             Thread.sleep(200);   // Que no se mezcle el GC del paso anterior
             Sonda sonda = new Sonda();
@@ -264,20 +250,13 @@ public class MedirChunks {
             }
             grabandoPausas = true;
 
-            // Lo que hace actualizarMundo() en el hilo principal: crear los chunks (del más cercano al más lejano)
+            // Lo que hace Partida al cambiar de chunk, en el hilo principal
             long bytesInicio = HILOS.getCurrentThreadAllocatedBytes();
             long inicio = System.nanoTime();
-            List<Future<?>> tareas = new ArrayList<>();
-            for (int d = 0; d <= RENDER_DISTANCE; d++) {
-                for (int cz : d == 0 ? new int[] { 0 } : new int[] { -d, d }) {
-                    Chunk chunk = new Chunk(mundo, nuevaX, cz);
-                    mundo.agregarChunk(chunk);
-                    tareas.add(pool.submit(chunk::generarTerrenoAsincrono));
-                }
-            }
-            long nanosCrear = System.nanoTime() - inicio;
-            long bytesCrear = HILOS.getCurrentThreadAllocatedBytes() - bytesInicio;
-            for (Future<?> tarea : tareas) tarea.get();
+            mundo.actualizarMundo(x, 0);
+            long nanosActualizar = System.nanoTime() - inicio;
+            long bytesActualizar = HILOS.getCurrentThreadAllocatedBytes() - bytesInicio;
+            int mallas = esperar(mundo);
             long nanosTotal = System.nanoTime() - inicio;
 
             sonda.terminar();
@@ -289,10 +268,16 @@ public class MedirChunks {
             }
             long gcMsPaso = gcMsTotal() - gcMs;
             double mbGeneradores = (bytesDe(generadores) - bytesGeneradores) / MB;
+            // Los terrenos nuevos: la columna que entró al anillo de afuera
+            int terrenos = 0;
+            for (int cz = -RENDER_DISTANCE - 1; cz <= RENDER_DISTANCE + 1; cz++) {
+                Chunk chunk = mundo.getChunk(paso + RENDER_DISTANCE + 1, cz);
+                if (chunk != null && chunk.estaGenerado()) terrenos++;
+            }
 
-            System.out.printf(Locale.ROOT, "   paso %d: %4.0f ms | hilo principal: crear los chunks %.1f ms (%.0f MB) | los generadores reservaron %.0f MB"
-                    + " | GC: pausas %d, %d ms, la más larga %d ms | sonda: retraso máx %.1f ms, más de 5 ms: %d%n",
-                    paso, nanosTotal / MS, nanosCrear / MS, bytesCrear / MB, mbGeneradores,
+            System.out.printf(Locale.ROOT, "   paso %d: %4.0f ms (%d terrenos, %d mallas) | hilo principal: actualizarMundo() %.1f ms (%.0f MB)"
+                    + " | los generadores reservaron %.0f MB | GC: pausas %d, %d ms, la más larga %d ms | sonda: retraso máx %.1f ms, más de 5 ms: %d%n",
+                    paso, nanosTotal / MS, terrenos, mallas, nanosActualizar / MS, bytesActualizar / MB, mbGeneradores,
                     gcCuentaTotal() - gcCuenta, gcMsPaso, pausaMax, sonda.maxRetraso / MS, sonda.retrasosDe5ms);
             sumaMs += nanosTotal / MS;
             sumaGcMs += gcMsPaso;
@@ -300,12 +285,27 @@ public class MedirChunks {
             peorPausa = Math.max(peorPausa, pausaMax);
             peorRetraso = Math.max(peorRetraso, sonda.maxRetraso);
         }
-        System.out.printf(Locale.ROOT, "   promedio: %.0f ms por borde, %.0f MB reservados (%.0f MB por chunk), GC %.0f ms por borde;"
+        System.out.printf(Locale.ROOT, "   promedio: %.0f ms por borde, %.0f MB reservados, GC %.0f ms por borde;"
                 + " pausa más larga %d ms, retraso máx de la sonda %.1f ms%n%n",
-                sumaMs / PASOS_BORDE, sumaMb / PASOS_BORDE, sumaMb / PASOS_BORDE / lado, sumaGcMs / PASOS_BORDE,
-                peorPausa, peorRetraso / MS);
-        pool.shutdownNow();
+                sumaMs / PASOS_BORDE, sumaMb / PASOS_BORDE, sumaGcMs / PASOS_BORDE, peorPausa, peorRetraso / MS);
         mundo.cleanup();
+    }
+
+    // Saca las mallas terminadas, como procesarMallasPendientes() pero sin la GPU, hasta que los hilos del World
+    // no tienen nada más que hacer. Devuelve cuántas sacó.
+    private static int esperar(World mundo) throws InterruptedException {
+        int mallas = 0;
+        while (true) {
+            if (mundo.sacarMallaParaSubir() != null) mallas++;
+            else if (mundo.estaTrabajando()) LockSupport.parkNanos(200_000);
+            else return mallas;
+        }
+    }
+
+    // Los hilos del pool del World. Se crean con la primera tarea y viven hasta el final: después de la carga
+    // inicial ya están todos.
+    private static List<Thread> hilosGeneradores() {
+        return Thread.getAllStackTraces().keySet().stream().filter(h -> h.getName().equals("generador-chunks")).toList();
     }
 
     // ========================================================================
@@ -385,9 +385,7 @@ public class MedirChunks {
 
     private static long bytesDe(List<Thread> hilos) {
         long total = 0;
-        synchronized (hilos) {
-            for (Thread hilo : hilos) total += Math.max(0, HILOS.getThreadAllocatedBytes(hilo.threadId()));
-        }
+        for (Thread hilo : hilos) total += Math.max(0, HILOS.getThreadAllocatedBytes(hilo.threadId()));
         return total;
     }
 
