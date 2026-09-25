@@ -1,6 +1,6 @@
 # Plan: optimización (tirones al cargar chunks)
 
-**Estado:** en pausa (2026-09-25), a pedido del usuario, para arreglar primero unas cosas del agua y del jugador. Las fases 1 (medir) y 2 (mallas sin basura, el arreglo grande) están hechas y medidas aquí. Al retomar: primero repetir en Windows la prueba de la fase 2 con el código actualizado (`git pull`), porque la que se hizo corrió sin la fase 2. Si ya no hay tirones, las fases 3 y 4 pueden no hacer falta.
+**Estado:** en pausa (2026-09-25), a pedido del usuario, para arreglar primero unas cosas del agua y del jugador (`PLAN_AGUA_JUGADOR.md`). Las fases 1 (medir) y 2 (mallas sin basura, el arreglo grande) están hechas y medidas aquí. Al retomar: primero repetir en Windows la prueba de la fase 2 con el código actualizado (`git pull`), porque la que se hizo corrió sin la fase 2. Si ya no hay tirones, las fases 3 y 4 pueden no hacer falta.
 
 ## El problema
 
@@ -189,7 +189,7 @@ Las mallas ahora tardan ~10 ms en vez de ~350, así que el chunk de al lado tien
 | Carga inicial: caras que faltan (de 2.954.230) | 79.500–79.600, en 77 de 81 chunks | 78.700–79.300, en 76–77 de 81 chunks |
 | Cruzar un borde: caras que faltan (de 343.971) | 1.000–1.100, en 5–6 de 9 chunks | 1.000–1.700, en 4–7 de 9 chunks |
 
-La fase 2 casi no lo cambia. Lo que sí muestra es que **los huecos existen**: al cargar el mundo falta ~1 de cada 37 caras, todas en los bordes de los chunks. Se arregla en la fase 5.
+La fase 2 casi no lo cambia. Lo que sí muestra es que **los huecos existen**: al cargar el mundo falta ~1 de cada 37 caras, todas en los bordes de los chunks. Se arregla en la fase 1 de `PLAN_AGUA_JUGADOR.md` (antes estaba en la fase 5 de este plan).
 
 ## Fases
 
@@ -253,7 +253,7 @@ Según lo que diga la medición en Windows:
 Esto no quita tirones, pero sube los FPS en general:
 
 - No dibujar los chunks que quedan fuera de la vista de la cámara (*frustum culling*, con `FrustumIntersection` de JOML).
-- Arreglar las caras de los bordes de chunk (punto 2 de "Cosas a revisar" en `ARQUITECTURA.md`): cuando llega un chunk, volver a armar la malla de los vecinos que ya estaban cargados.
+- ~~Arreglar las caras de los bordes de chunk~~: pasó a la fase 1 de `PLAN_AGUA_JUGADOR.md`, porque es la misma causa que las rayas del agua. Allí se arregla de otra forma: la malla de un chunk se arma solo cuando sus 4 vecinos ya tienen terreno.
 
 ## Fuera de este plan
 

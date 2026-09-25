@@ -4,10 +4,10 @@ Clon de Minecraft en Java 21 con LWJGL 3 y Maven. Todo el contexto necesario est
 
 ## Antes de empezar
 
-1. Ver qué plan está activo. Hoy **no hay ninguno**:
+1. Ver qué plan está activo. Hoy es **`docs/PLAN_AGUA_JUGADOR.md`** (las rayas del agua y los problemas del jugador): ver su tabla "Estado de las fases" para saber qué fase sigue.
    - `docs/PLAN_MENU_INICIO.md`: terminado y probado.
-   - `docs/PLAN_OPTIMIZACION.md`: **en pausa** después de la fase 2 (ver su "Estado" para retomarlo).
-   - Lo siguiente que pidió el usuario: arreglar algo del agua y algo del jugador. Si el pedido es chico, hacerlo directo; si da para varias fases, armar un plan nuevo en `docs/PLAN_<TEMA>.md` con el mismo formato (sección "Cómo trabajamos", tabla "Estado de las fases" y una sección por fase) y apuntarlo aquí como el plan activo.
+   - `docs/PLAN_OPTIMIZACION.md`: **en pausa** después de la fase 2, hasta terminar el plan del agua y el jugador (ver su "Estado" para retomarlo).
+   - Para un pedido nuevo: si es chico, hacerlo directo; si da para varias fases, armar un plan nuevo en `docs/PLAN_<TEMA>.md` con el mismo formato (sección "Cómo trabajamos", tabla "Estado de las fases" y una sección por fase) y apuntarlo aquí como el plan activo.
 2. Leer `docs/ARQUITECTURA.md` para entender cómo está organizado el código.
 
 ## Una fase por conversación
