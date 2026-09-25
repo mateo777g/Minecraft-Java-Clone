@@ -1,6 +1,6 @@
 # Plan: optimización (tirones al cargar chunks)
 
-**Estado:** en curso. La fase 1 (medir) está hecha y medida aquí; falta la medición en Windows. Viene después del menú de inicio, que ya está terminado y probado (ver `PLAN_MENU_INICIO.md`).
+**Estado:** en curso. Las fases 1 (medir) y 2 (mallas sin basura) están hechas y medidas aquí; faltan las mediciones en Windows. Viene después del menú de inicio, que ya está terminado y probado (ver `PLAN_MENU_INICIO.md`).
 
 ## El problema
 
@@ -19,7 +19,7 @@ Igual que con el menú: una fase por conversación y `/clear` entre fases (ver `
 | Fase | Estado | Commit | Medición (antes → después) | Qué falta probar en Windows |
 | --- | --- | --- | --- | --- |
 | 1. Medir | hecha (compila; medida aquí y en el juego con OpenGL por software) | `d264a19` | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". | Correr el juego con la semilla 12345, caminar ~1 minuto en línea recta y pegar la salida de la consola (ver "Prueba en Windows"). |
-| 2. Mallas sin basura (`Float` y vecinos) | pendiente | | | |
+| 2. Mallas sin basura (`Float` y vecinos) | hecha (compila; medida aquí y en el juego con OpenGL por software; "El mundo no cambió") | | Aquí: la malla opaca reserva **141 → 4,1 MB** y tarda 357 → 6–15 ms; cruzar un borde reserva **904 → 58 MB**, el GC pasa de 378 a **4–12 ms** por borde y la pausa más larga de 354 a **17 ms** (59 ms en una corrida). `getBlockGlobal()`: 160 → 21–37 ns. Ver "Mediciones". | La misma prueba de la fase 1 (semilla 12345, ~1 minuto en línea recta, pegar la salida). Debería haber muy pocas pausas de GC al cruzar bordes y `armados` con unos 5–7 MB por chunk. Mirar también `mundo` en los frames que piden chunks (ver "Fase 2, el juego en Linux"). |
 | 3. Aliviar el hilo principal | pendiente | | | |
 | 4. Hilos generadores | pendiente | | | |
 | 5. Menos cosas que dibujar (opcional) | pendiente | | | |
@@ -28,12 +28,14 @@ Igual que con el menú: una fase por conversación y `/clear` entre fases (ver `
 
 Medido en la fase 1 (ver "Mediciones"). Lo que traba la pantalla son **pausas del GC** mientras los hilos generadores arman las mallas: en esas pausas se detienen todos los hilos, también el que dibuja. Lo demás pesa mucho menos.
 
-1. **Buscar los vecinos de cada bloque en el mapa de chunks (lo más pesado, no estaba en el plan).** Para decidir qué caras se ven, `ChunkMeshBuilder` pregunta por los 6 vecinos de cada bloque sólido con `world.getBlockGlobal()`, también cuando el vecino está en el mismo chunk: unas 800.000 veces por malla. Cada vez busca el chunk en el `ConcurrentHashMap<Long, Chunk>` y eso reserva memoria:
+La fase 2 arregló los puntos 1 y 2: la basura por chunk bajó de ~100 MB a ~6 MB y las pausas del GC al cruzar un borde, de 100–540 ms a menos de 20 ms casi siempre. Quedan los puntos 3 a 5.
+
+1. **(Arreglado en la fase 2.) Buscar los vecinos de cada bloque en el mapa de chunks (lo más pesado, no estaba en el plan).** Para decidir qué caras se ven, `ChunkMeshBuilder` pregunta por los 6 vecinos de cada bloque sólido con `world.getBlockGlobal()`, también cuando el vecino está en el mismo chunk: unas 800.000 veces por malla. Cada vez busca el chunk en el `ConcurrentHashMap<Long, Chunk>` y eso reserva memoria:
    - la clave `long` se convierte en un objeto `Long`, dos veces (`containsKey` y `get`);
    - el `hashCode()` de esa clave es `chunkX ^ chunkZ`, así que las 81 claves caen en **solo 16 cubetas** (hasta 9 en una). Las cubetas tan llenas se vuelven árboles y buscar en ellos llama a `getGenericInterfaces()`, que crea arreglos nuevos cada vez.
 
    En total son 48 a 112 bytes y ~0,1 µs por vecino: **unos 86 de los 141 MB** de la malla opaca y más o menos la mitad de su tiempo.
-2. **Mallas hechas con objetos `Float`.** `ChunkMeshBuilder` junta los vértices en una `List<Float>`: cada número es un objeto aparte y cada cara arma un `float[]` temporal. Son unos 35 MB por malla (35.800 caras, más de un millón de `Float`). Pesa menos que los vecinos, pero es lo que **alarga las pausas**: el log del GC muestra que casi toda la pausa es copiar objetos vivos ("Object Copy"), y mientras una malla se arma su lista está viva. Además, cada vez que la lista crece pide un arreglo de más de 1 MB ("humongous" para G1), y eso dispara GC extra.
+2. **(Arreglado en la fase 2.) Mallas hechas con objetos `Float`.** `ChunkMeshBuilder` junta los vértices en una `List<Float>`: cada número es un objeto aparte y cada cara arma un `float[]` temporal. Son unos 35 MB por malla (35.800 caras, más de un millón de `Float`). Pesa menos que los vecinos, pero es lo que **alarga las pausas**: el log del GC muestra que casi toda la pausa es copiar objetos vivos ("Object Copy"), y mientras una malla se arma su lista está viva. Además, cada vez que la lista crece pide un arreglo de más de 1 MB ("humongous" para G1), y eso dispara GC extra.
 3. **Trabajo en el hilo principal.** `World.actualizarMundo()` crea los 9 `Chunk` en el hilo principal: 4–12 ms y 17 MB (a veces ~100 ms, cuando justo cae un GC). Subir una malla (~4 MB) con `Chunk.cargarMallaEnOpenGL()` tardó 2–47 ms con OpenGL por software; con una GPU de verdad hay que medirlo en Windows.
 4. **Trabajo que se tira.** Si el jugador camina rápido, se siguen generando chunks que ya quedaron fuera de rango. En el juego con OpenGL por software (2–3 FPS) se descartaron 4 mallas en un cruce; a 60 FPS debería pasar poco.
 5. **Llegan 9 chunks de golpe** y los hilos generadores (`núcleos − 1`) compiten con el hilo principal. Aquí no se vio: el retraso del hilo "sonda" (ver "Cómo medir") coincide con la pausa del GC más larga, no con la pelea por los núcleos.
@@ -74,6 +76,14 @@ Tarda unos 25 s y tiene tres partes:
 
 **Los tiempos varían mucho de una corrida a otra** (este equipo es compartido): comparar con varias corridas. **La memoria reservada sale exacta** y es el mejor número para comparar fases.
 
+**Ojo con la memoria nueva en este equipo.** Es una máquina virtual y, la primera vez que el heap crece y usa memoria que nunca se tocó, el hilo que la reserva puede quedarse esperando unos 100 ms sin usar CPU. Se ve como `crear los chunks` de ~110 ms en la herramienta y `mundo` de 159 ms en el juego (ver "Fase 2"). Antes de la fase 2 no se notaba porque la basura hacía crecer el heap al principio. Para saber si un número así es del código o del equipo, correr la herramienta también con el heap ya tocado:
+
+```text
+java -Xms3g -XX:+AlwaysPreTouch -cp "target/classes:$(cat target/classpath.txt)" herramientas/MedirChunks.java
+```
+
+Con eso `crear los chunks` vuelve a 4–6 ms. En Windows tocar memoria nueva es rápido, así que allá no debería pasar.
+
 ### Prueba en Windows
 
 1. Traer los cambios de la rama y abrir el juego como siempre (`com.minejava.Main.Launcher` desde el IDE).
@@ -110,6 +120,44 @@ De dónde salen los 141 MB de la malla opaca (medido con un programa aparte en e
 
 Con Xvfb y Mesa, semilla 12345, esperando la carga y caminando 15 s. No sirve para los FPS (dibujar tarda 250–400 ms por frame sin GPU), pero confirma que el medidor funciona y muestra frames con **pausas de GC de 70–436 ms**, `mundo` de 8,5 ms al pedir 9 chunks y subir una malla en 2–47 ms.
 
+### Fase 2, aquí (mismo equipo)
+
+`MedirChunks`: una corrida antes de los cambios (igual a las de la fase 1) y tres después, todas con "El mundo no cambió":
+
+| Paso (un chunk, un hilo) | Antes: tiempo / memoria | Después: tiempo / memoria |
+| --- | --- | --- |
+| Malla opaca | 357 ms / **140,8 MB** | 6–15 ms / **4,1 MB** (son los vértices que devuelve) |
+| Malla transparente | 12 ms / 0,9 MB | 2 ms / 0,0 MB |
+| Un chunk completo (con `new Chunk` y el terreno) | 397 ms / 145 MB | 27–40 ms / 7,3 MB |
+
+| Cruzar un borde (9 chunks, 3 hilos) | Antes | Después |
+| --- | --- | --- |
+| Hasta tener los 9 chunks | 923 ms en promedio | 123–194 ms (96–100 ms con el heap ya tocado) |
+| Memoria reservada | 904 MB (100 MB por chunk) | **58 MB** (6 MB por chunk; el primer cruce, ~95 MB, porque cada hilo agranda su lista de vértices) |
+| GC por borde | 378 ms | **4–12 ms** |
+| Pausa más larga | 354 ms | **17 ms** en dos corridas y 59 ms en otra (12–16 ms con el heap ya tocado) |
+| Hilo principal, crear los 9 chunks | 4–6 ms (una vez 49 ms) | 4–7 ms en una corrida; 84–219 ms en las otras dos, esperando memoria nueva de la VM (ver "Cómo medir") |
+
+Con un programa aparte, `getBlockGlobal()` con 81 chunks cargados (lo usan las colisiones, el rayo de romper/poner y `getAlturaSuperficie()`, en el hilo principal): **~160 ns y 132 bytes → 21–37 ns y 24 bytes** por llamada (queda el `Long` de la clave).
+
+### Fase 2, el juego en Linux con OpenGL por software
+
+Semilla 12345, con Xvfb y Mesa (2–6 FPS, así que los FPS no sirven). El jugador apareció al lado de un tronco, así que caminó con A (hacia −x) y cruzó un borde:
+
+- Carga inicial: 81 chunks armados con **6 MB reservados por chunk** en promedio (antes ~100 MB). Hubo 5 pausas de GC (84–99 ms en total, la peor de 62–63 ms) mientras se subían las mallas; después, ninguna.
+- Al cruzar el borde: 9 chunks armados con 5 MB cada uno y **ninguna pausa de GC**. Pero `mundo` tardó **159 ms** sin GC: es crear los 9 chunks (18 MB) justo cuando el heap creció (de 634 a 660 MB), o sea la espera por memoria nueva de la VM. Esa reserva es lo primero de la fase 3. En Windows hay que mirar cuánto da `mundo`.
+
+### Las caras de los bordes (punto 2 de "Cosas a revisar" en `ARQUITECTURA.md`)
+
+Las mallas ahora tardan ~10 ms en vez de ~350, así que el chunk de al lado tiene menos tiempo para generarse antes de que se lea su borde. Para ver si eso empeoraba los huecos en los bordes, un programa aparte hizo lo mismo que el juego (3 hilos, del chunk más cercano al más lejano, cada malla apenas está su terreno) y comparó cada malla con la correcta, armada con todos los vecinos ya generados. Tres corridas de cada una:
+
+| | Código de la fase 1 | Código de la fase 2 |
+| --- | --- | --- |
+| Carga inicial: caras que faltan (de 2.954.230) | 79.500–79.600, en 77 de 81 chunks | 78.700–79.300, en 76–77 de 81 chunks |
+| Cruzar un borde: caras que faltan (de 343.971) | 1.000–1.100, en 5–6 de 9 chunks | 1.000–1.700, en 4–7 de 9 chunks |
+
+La fase 2 casi no lo cambia. Lo que sí muestra es que **los huecos existen**: al cargar el mundo falta ~1 de cada 37 caras, todas en los bordes de los chunks. Se arregla en la fase 5.
+
 ## Fases
 
 ### Fase 1: medir (sin cambios visibles) — hecha
@@ -121,9 +169,21 @@ Con Xvfb y Mesa, semilla 12345, esperando la carga y caminando 15 s. No sirve pa
 
 **Lista cuando:** hay números. Cuánto duran los tirones, en qué parte del ciclo caen y si coinciden con el GC.
 
-### Fase 2: mallas sin basura (`Float` y vecinos)
+### Fase 2: mallas sin basura (`Float` y vecinos) — hecha
 
 La medición dice que esto es lo que más pesa. Todo tiene que dar **exactamente** las mismas mallas.
+
+**Lo que se hizo** (en `ChunkMeshBuilder` y `World`):
+
+- Los vecinos dentro del chunk se leen de su arreglo. Los 4 chunks de al lado se buscan una vez por malla con `World.getChunk()`, y sus bordes se leen de sus arreglos.
+- Los vértices se juntan en `ListaFloats`, un `float[]` que crece solo, y cada cara escribe sus 6 vértices directo, en el mismo orden que antes. Hay una lista por hilo (`ThreadLocal`) que se reutiliza de malla en malla: así crece una sola vez por hilo (hasta ~8 MB) y no en cada malla. Solo se reserva la copia justa que se devuelve (4,1 MB en promedio). Las listas se liberan cuando terminan los hilos, al salir del mundo.
+- Las coordenadas de textura de cada bloque se calculan una vez, en la tabla `UVS`. `getUVs()` sigue igual para el fondo del menú.
+- La clave de los chunks en `World` se mezcla (el paso final de SplitMix64), así su `hashCode()` ya no choca. `getBlockGlobal()` y `setBlockGlobal()` buscan el chunk una vez y no dos (antes `containsKey` y `get`).
+- Un detalle: antes, los bloques del propio chunk se buscaban en el mapa. Si el chunk salía del rango mientras se armaba su malla, esta salía con todas las caras (y se tiraba igual). Ahora se leen de su arreglo.
+
+**Falta** la prueba en Windows (ver la tabla).
+
+Lo que se había planeado:
 
 - **Vecinos:** si el vecino está dentro del chunk, leerlo directo del arreglo `blocks`. Para los bloques del borde, buscar los 4 chunks vecinos **una sola vez** al empezar la malla, no una vez por bloque. Ojo, para que salga igual hay que respetar lo que hace hoy `getBlockGlobal()`: si el chunk vecino no está en el mapa, es aire; si está, se lee su bloque aunque todavía no tenga terreno (ceros = piedra).
 - **`Float`:** cambiar la `List<Float>` por un `float[]` que crece solo (una clase chiquita con `add` y `toArray`). Escribir los 30 floats de cada cara directo, sin el `float[]` temporal y con el mismo orden de vértices.

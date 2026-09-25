@@ -54,8 +54,19 @@ public class World {
         chunksActivos.put(generarClave(chunk.getChunkX(), chunk.getChunkZ()), chunk);
     }
 
-    private long generarClave(int cx, int cz) {
-        return (((long) cx) << 32) | (cz & 0xffffffffL);
+    // La clave de un chunk en chunksActivos: chunkX y chunkZ juntos en un long, mezclados con el paso final de
+    // SplitMix64 (a claves distintas les da números distintos). Sin mezclar, el hashCode() del Long era
+    // chunkX ^ chunkZ: las 81 claves caían en 16 cubetas y cada búsqueda era lenta y reservaba memoria.
+    private static long generarClave(int cx, int cz) {
+        long clave = (((long) cx) << 32) | (cz & 0xffffffffL);
+        clave = (clave ^ (clave >>> 30)) * 0xbf58476d1ce4e5b9L;
+        clave = (clave ^ (clave >>> 27)) * 0x94d049bb133111ebL;
+        return clave ^ (clave >>> 31);
+    }
+
+    // El chunk (chunkX, chunkZ), o null si no está cargado. Lo usa ChunkMeshBuilder para leer los bordes de sus vecinos.
+    public Chunk getChunk(int chunkX, int chunkZ) {
+        return chunksActivos.get(generarClave(chunkX, chunkZ));
     }
 
     public void actualizarMundo(float playerX, float playerZ) {
@@ -134,28 +145,18 @@ public class World {
         GL11.glDepthMask(true);
     }
 
+    // Una sola búsqueda en el mapa (antes eran dos, containsKey y get). Si el chunk no está cargado, es aire.
     public int getBlockGlobal(int x, int y, int z) {
-        int cx = Math.floorDiv(x, Chunk.CHUNK_SIZE);
-        int cz = Math.floorDiv(z, Chunk.CHUNK_SIZE);
-        long clave = generarClave(cx, cz);
-        if (chunksActivos.containsKey(clave)) {
-            int lx = Math.floorMod(x, Chunk.CHUNK_SIZE);
-            int lz = Math.floorMod(z, Chunk.CHUNK_SIZE);
-            return chunksActivos.get(clave).getBlock(lx, y, lz);
-        }
-        return Block.AIR;
+        Chunk chunk = chunkEn(x, z);
+        if (chunk == null) return Block.AIR;
+        return chunk.getBlock(Math.floorMod(x, Chunk.CHUNK_SIZE), y, Math.floorMod(z, Chunk.CHUNK_SIZE));
     }
 
     public void setBlockGlobal(int x, int y, int z, int blockType) {
-        int cx = Math.floorDiv(x, Chunk.CHUNK_SIZE);
-        int cz = Math.floorDiv(z, Chunk.CHUNK_SIZE);
-        long clave = generarClave(cx, cz);
-        if (chunksActivos.containsKey(clave)) {
-            int lx = Math.floorMod(x, Chunk.CHUNK_SIZE);
-            int lz = Math.floorMod(z, Chunk.CHUNK_SIZE);
-            chunksActivos.get(clave).setBlock(lx, y, lz, blockType);
-            
-            Chunk modificado = chunksActivos.get(clave);
+        Chunk modificado = chunkEn(x, z);
+        if (modificado != null) {
+            modificado.setBlock(Math.floorMod(x, Chunk.CHUNK_SIZE), y, Math.floorMod(z, Chunk.CHUNK_SIZE), blockType);
+
             chunkGenerators.submit(() -> {
                 modificado.generarTerrenoAsincrono(); 
                 chunksListosParaGL.add(modificado);
