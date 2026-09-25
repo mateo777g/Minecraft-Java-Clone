@@ -1,6 +1,6 @@
 # Plan: optimización (tirones al cargar chunks)
 
-**Estado:** en curso. Las fases 1 (medir) y 2 (mallas sin basura) están hechas y medidas aquí; faltan las mediciones en Windows. Viene después del menú de inicio, que ya está terminado y probado (ver `PLAN_MENU_INICIO.md`).
+**Estado:** en curso. Las fases 1 (medir) y 2 (mallas sin basura) están hechas y medidas aquí. La fase 1 ya está medida en Windows; la prueba de la fase 2 en Windows corrió sin la fase 2 y hay que repetirla antes de empezar la fase 3. Viene después del menú de inicio, que ya está terminado y probado (ver `PLAN_MENU_INICIO.md`).
 
 ## El problema
 
@@ -19,8 +19,8 @@ Igual que con el menú: una fase por conversación y `/clear` entre fases (ver `
 | Fase | Estado | Commit | Medición (antes → después) | Qué falta probar en Windows |
 | --- | --- | --- | --- | --- |
 | 1. Medir | hecha y medida en Windows | `d264a19` | Aquí: la malla opaca de un chunk reserva **141 MB** y tarda 165–410 ms; cruzar un borde reserva **905 MB** y trae pausas de GC de **100–540 ms**. Ver "Mediciones". En Windows (antes de la fase 2): 40 frames lentos en 1 minuto (el peor, 186 ms), 37 de ellos con pausa de GC; 60 pausas de GC que suman 3,2 s; 78–133 MB reservados por chunk. | Nada. El usuario lo midió el 2026-09-25 (ver "Mediciones"). |
-| 2. Mallas sin basura (`Float` y vecinos) | hecha (compila; medida aquí y en el juego con OpenGL por software; "El mundo no cambió") | `48d2024` | Aquí: la malla opaca reserva **141 → 4,1 MB** y tarda 357 → 6–15 ms; cruzar un borde reserva **904 → 58 MB**, el GC pasa de 378 a **4–12 ms** por borde y la pausa más larga de 354 a **17 ms** (59 ms en una corrida). `getBlockGlobal()`: 160 → 21–37 ns. Ver "Mediciones". | La misma prueba de la fase 1 (semilla 12345, ~1 minuto en línea recta, pegar la salida). Debería haber muy pocas pausas de GC al cruzar bordes y `armados` con unos 5–7 MB por chunk. Mirar también `mundo` en los frames que piden chunks (ver "Fase 2, el juego en Linux"). |
-| 3. Aliviar el hilo principal | pendiente | | | |
+| 2. Mallas sin basura (`Float` y vecinos) | hecha (compila; medida aquí y en el juego con OpenGL por software; "El mundo no cambió") | `48d2024` | Aquí: la malla opaca reserva **141 → 4,1 MB** y tarda 357 → 6–15 ms; cruzar un borde reserva **904 → 58 MB**, el GC pasa de 378 a **4–12 ms** por borde y la pausa más larga de 354 a **17 ms** (59 ms en una corrida). `getBlockGlobal()`: 160 → 21–37 ns. Ver "Mediciones". | Repetir la prueba de la fase 1 (semilla 12345, ~1 minuto en línea recta, pegar la salida): la del 2026-09-25 corrió **sin la fase 2** (133 MB por chunk, como antes; ver "Segunda prueba en Windows"). Debería haber muy pocas pausas de GC al cruzar bordes y `armados` con unos 5–7 MB por chunk. Mirar también `mundo` en los frames que piden chunks (ver "Fase 2, el juego en Linux"). |
+| 3. Aliviar el hilo principal | pendiente: antes, la prueba de la fase 2 en Windows (ver "Fase 3") | | En Windows, sin la fase 2: `mundo` 4–11 ms y `mallas` 2–11 ms por borde (ver "Segunda prueba en Windows"). | |
 | 4. Hilos generadores | pendiente | | | |
 | 5. Menos cosas que dibujar (opcional) | pendiente | | | |
 
@@ -86,7 +86,7 @@ Con eso `crear los chunks` vuelve a 4–6 ms. En Windows tocar memoria nueva es 
 
 ### Prueba en Windows
 
-1. Traer los cambios de la rama y abrir el juego como siempre (`com.minejava.Main.Launcher` desde el IDE).
+1. Traer los cambios de la rama (`git pull`), recompilar y abrir el juego como siempre (`com.minejava.Main.Launcher` desde el IDE). Para saber si corre el código nuevo: desde la fase 2, los resúmenes dicen unos 5–15 MB reservados por chunk en `armados`; si dicen ~100 MB, es el juego de antes de la fase 2.
 2. *Un jugador* → escribir la semilla **12345** → *Crear mundo*. Así medimos siempre el mismo mundo.
 3. Al entrar, **no moverse unos 15 s**, hasta que un resumen diga `armados 0` y `subidos 0` (terminó de cargar el mundo).
 4. **Mantener W unos 60 s** sin mover el ratón (el jugador vuela en línea recta).
@@ -162,6 +162,24 @@ Semilla 12345, con Xvfb y Mesa (2–6 FPS, así que los FPS no sirven). El jugad
 - Carga inicial: 81 chunks armados con **6 MB reservados por chunk** en promedio (antes ~100 MB). Hubo 5 pausas de GC (84–99 ms en total, la peor de 62–63 ms) mientras se subían las mallas; después, ninguna.
 - Al cruzar el borde: 9 chunks armados con 5 MB cada uno y **ninguna pausa de GC**. Pero `mundo` tardó **159 ms** sin GC: es crear los 9 chunks (18 MB) justo cuando el heap creció (de 634 a 660 MB), o sea la espera por memoria nueva de la VM. Esa reserva es lo primero de la fase 3. En Windows hay que mirar cuánto da `mundo`.
 
+### Segunda prueba en Windows: corrió sin la fase 2
+
+El usuario repitió la prueba el 2026-09-25 para medir la fase 2 (semilla 12345, ~15 s quieto y ~80 s caminando). Salió igual que la de la fase 1, y la memoria por chunk muestra que **el juego no tenía la fase 2**: con ella cada chunk reserva ~6 MB (hasta ~12 MB en la carga inicial, mientras cada uno de los 31 hilos agranda su lista una vez), y aquí siguió en 59–133 MB. Lo más probable es que faltara traer la rama o que el IDE corriera clases viejas. **Hay que repetirla.** Ese mismo día, `MedirChunks` sobre el último commit de la rama dio 6 MB por chunk y "El mundo no cambió".
+
+| | Fase 1 en Windows | Esta prueba (tampoco tenía la fase 2) |
+| --- | --- | --- |
+| Frames lentos (>25 ms) | 40, el peor de 186 ms; 37 con GC | 43, el peor de 162 ms; **42 con GC** (el otro, de 29 ms, es subir una malla de 4,6 MB en la carga inicial) |
+| GC | 60 pausas, 3,2 s | 68 pausas, 3,3 s; la peor de 160 ms |
+| Chunks al caminar | malla de 109–187 ms, 78–108 MB por chunk | malla de 61–211 ms, **59–124 MB** por chunk; terreno de 7–50 ms |
+| Carga inicial (81 chunks) | malla de 845 ms, 133 MB por chunk, el peor de 2,9 s | malla de 883 ms, **133 MB** por chunk, el peor de 2,75 s |
+| Hilo principal | 25–114 MB cada 5 s | 43–96 MB cada 5 s caminando (7–9 MB quieto) |
+
+Lo que sí sirve de esta prueba, porque la fase 2 no lo cambia, es **cuánto tarda en Windows lo que ataca la fase 3**:
+
+- `mundo` (crear los 9 chunks al cruzar un borde): 4–11 ms como máximo en cada resumen. Una vez 89 ms, con una pausa de GC de 85 ms en ese frame.
+- `mallas` (subir una malla, 2,5–4,6 MB): 2–11 ms como máximo al caminar, y 27 ms una vez en la carga inicial. Las de 40 y 91 ms tuvieron GC.
+- El monitor va a 240 Hz (4,2 ms por frame), así que eso es perder 1 o 2 frames al cruzar un borde: mucho menos que las pausas de GC de 30–160 ms que había en casi todos los frames lentos.
+
 ### Las caras de los bordes (punto 2 de "Cosas a revisar" en `ARQUITECTURA.md`)
 
 Las mallas ahora tardan ~10 ms en vez de ~350, así que el chunk de al lado tiene menos tiempo para generarse antes de que se lea su borde. Para ver si eso empeoraba los huecos en los bordes, un programa aparte hizo lo mismo que el juego (3 hilos, del chunk más cercano al más lejano, cada malla apenas está su terreno) y comparó cada malla con la correcta, armada con todos los vecinos ya generados. Tres corridas de cada una:
@@ -209,6 +227,8 @@ Lo que se había planeado:
 **Lista cuando:** las mallas salen idénticas, cada chunk deja mucha menos basura y en Windows hay menos tirones.
 
 ### Fase 3: aliviar el hilo principal
+
+**Antes de empezarla**, repetir la prueba de la fase 2 en Windows. Si ya casi no hay frames lentos al caminar, lo que queda en el hilo principal son esos 4–11 ms por borde (ver "Segunda prueba en Windows"): esta fase pasa a ser un retoque y se puede achicar (por ejemplo, solo reservar el arreglo de bloques en el hilo generador) o saltar.
 
 Según lo que diga la medición en Windows:
 
